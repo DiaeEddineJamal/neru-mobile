@@ -6,6 +6,7 @@ import { DrawerContent } from '@/components/DrawerContent';
 import { IconButton } from '@/components/Icon';
 import { ModelButton } from '@/components/ModelButton';
 import { ModelSheet } from '@/components/ModelSheet';
+import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { WhatsNew } from '@/components/WhatsNew';
 import { font, useColors } from '@/theme';
 
@@ -34,6 +35,7 @@ export default function DrawerLayout() {
     />
     <ModelSheet />
     <WhatsNew />
+    <UpdatePrompt />
     </>
   );
 }

@@ -1,5 +1,15 @@
 # Neru mobile changelog
 
+## 0.10.0 · 2026-10-05
+
+**Team in your pocket.** Start Team tasks from your phone, watch them in a calmer thread, and get every new version as soon as it ships.
+
+- **Start a task from anywhere.** Pick the agents and models on your computer, choose a project, and send the first message. @-mention any member as you type.
+- **A tidier Team.** Members sit in a scrollable strip with their real logos, and replies are grouped by author with clear names and times.
+- **Updates find you.** When a new version of Neru is out, it offers itself the moment you open the app, with the highlights and a one-tap download.
+- **Smoother everywhere.** Messages fly up like iMessage, conversations load behind a soft shimmer, and the sidebar switches between chats and your desktop with icons.
+- **A glow that listens.** The voice glow now follows your actual speaking volume, rising and falling with every word.
+
 ## 0.9.1 · 2026-10-05
 
 **Meet Pocket Lab.** Make room for models that run on your phone, and stay close to your desktop wherever you connect.

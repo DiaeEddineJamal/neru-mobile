@@ -1,15 +1,68 @@
 [
   {
+    "version": "0.10.0",
+    "date": "2026-10-05",
+    "title": "Team in your pocket",
+    "summary": "Start Team tasks from your phone, watch them in a calmer thread, and get every new version as soon as it ships.",
+    "items": [
+      {
+        "icon": "plus",
+        "title": "Start a task from anywhere",
+        "text": "Pick the agents and models on your computer, choose a project, and send the first message. @-mention any member as you type."
+      },
+      {
+        "icon": "desktop",
+        "title": "A tidier Team",
+        "text": "Members sit in a scrollable strip with their real logos, and replies are grouped by author with clear names and times."
+      },
+      {
+        "icon": "download",
+        "title": "Updates find you",
+        "text": "When a new version of Neru is out, it offers itself the moment you open the app, with the highlights and a one-tap download."
+      },
+      {
+        "icon": "sparkles",
+        "title": "Smoother everywhere",
+        "text": "Messages fly up like iMessage, conversations load behind a soft shimmer, and the sidebar switches between chats and your desktop with icons."
+      },
+      {
+        "icon": "mic",
+        "title": "A glow that listens",
+        "text": "The voice glow now follows your actual speaking volume, rising and falling with every word."
+      }
+    ]
+  },
+  {
     "version": "0.9.1",
     "date": "2026-10-05",
     "title": "Meet Pocket Lab",
     "summary": "Make room for models that run on your phone, and stay close to your desktop wherever you connect.",
     "items": [
-      { "icon": "sparkles", "title": "A lab in your pocket", "text": "Explore the 10 models from Google AI Edge Gallery. Download models, then run them offline on Android with your own prompts and settings." },
-      { "icon": "photo", "title": "A little Magic Touch", "text": "Tap an object in a photo to create a transparent cutout, entirely on your phone." },
-      { "icon": "desktop", "title": "Code or Team", "text": "Choose a desktop Code session or Team conversation. Send follow-ups while work is running, and jump to the latest reply when you’re ready." },
-      { "icon": "link", "title": "Across networks", "text": "Enable internet access in desktop Phone settings to connect from another Wi-Fi network or mobile data. Keep Neru open and your desktop awake." },
-      { "icon": "mic", "title": "A steadier voice glow", "text": "The listening animation stays inside your prompt, with a stable rendering surface as the text grows." }
+      {
+        "icon": "sparkles",
+        "title": "A lab in your pocket",
+        "text": "Explore the 10 models from Google AI Edge Gallery. Download models, then run them offline on Android with your own prompts and settings."
+      },
+      {
+        "icon": "photo",
+        "title": "A little Magic Touch",
+        "text": "Tap an object in a photo to create a transparent cutout, entirely on your phone."
+      },
+      {
+        "icon": "desktop",
+        "title": "Code or Team",
+        "text": "Choose a desktop Code session or Team conversation. Send follow-ups while work is running, and jump to the latest reply when you’re ready."
+      },
+      {
+        "icon": "link",
+        "title": "Across networks",
+        "text": "Enable internet access in desktop Phone settings to connect from another Wi-Fi network or mobile data. Keep Neru open and your desktop awake."
+      },
+      {
+        "icon": "mic",
+        "title": "A steadier voice glow",
+        "text": "The listening animation stays inside your prompt, with a stable rendering surface as the text grows."
+      }
     ]
   },
   {
@@ -18,11 +71,31 @@
     "title": "Neru, now on your phone",
     "summary": "Chat with free models wherever you are, and keep an eye on the work Neru is doing on your computer.",
     "items": [
-      { "icon": "sparkles", "title": "Free models that keep going", "text": "Add a free key from NVIDIA, Google, OpenRouter and others. When a model runs out, Neru moves to the next one." },
-      { "icon": "desktop", "title": "Your desktop, in your pocket", "text": "Scan the code in Neru on your computer to follow sessions, read diffs, approve changes and reply." },
-      { "icon": "mic", "title": "Just say it", "text": "Tap the mic and talk. The glow around the message box listens with you." },
-      { "icon": "photo", "title": "Photos and files", "text": "Attach pictures and documents, and tap any picture to see it full screen." },
-      { "icon": "bell", "title": "Never miss an approval", "text": "Neru tells you when a desktop session is waiting on you." }
+      {
+        "icon": "sparkles",
+        "title": "Free models that keep going",
+        "text": "Add a free key from NVIDIA, Google, OpenRouter and others. When a model runs out, Neru moves to the next one."
+      },
+      {
+        "icon": "desktop",
+        "title": "Your desktop, in your pocket",
+        "text": "Scan the code in Neru on your computer to follow sessions, read diffs, approve changes and reply."
+      },
+      {
+        "icon": "mic",
+        "title": "Just say it",
+        "text": "Tap the mic and talk. The glow around the message box listens with you."
+      },
+      {
+        "icon": "photo",
+        "title": "Photos and files",
+        "text": "Attach pictures and documents, and tap any picture to see it full screen."
+      },
+      {
+        "icon": "bell",
+        "title": "Never miss an approval",
+        "text": "Neru tells you when a desktop session is waiting on you."
+      }
     ]
   }
 ]

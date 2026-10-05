@@ -22,6 +22,8 @@ export type Settings = {
   onboarded: boolean;
   /** Last version whose What's New was shown. */
   seenVersion: string;
+  /** A release the user chose "Later" for; offered again only once a newer one ships. */
+  skippedUpdate?: string;
 };
 
 type State = {

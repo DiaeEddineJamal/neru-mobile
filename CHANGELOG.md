@@ -1,5 +1,15 @@
 # Neru mobile changelog
 
+## 0.11.0 · 2026-10-05
+
+**It can see now.** Show a photo to a model running on your phone, hear back when replies land, and feel every tap.
+
+- **Models that see.** Gemma 4 and Gemma 3n in Pocket Lab now look at the photos you attach and answer about them, entirely on your phone.
+- **Notifications that matter.** Leave the app while Neru works. You’ll hear when a reply is ready, a desktop session needs you or finishes, or your team is done.
+- **Haptics, your way.** Gentle taps when you send, switch and confirm, with a switch in Settings to turn them off.
+- **Check for updates.** Settings has an Updates section to look for a new version any time. Downloads in Pocket Lab also retry on their own when the connection drops.
+- **Neru, through and through.** Confirmations and permission prompts now use Neru’s own sheets, and the welcome screens are calmer without the glow.
+
 ## 0.10.0 · 2026-10-05
 
 **Team in your pocket.** Start Team tasks from your phone, watch them in a calmer thread, and get every new version as soon as it ships.

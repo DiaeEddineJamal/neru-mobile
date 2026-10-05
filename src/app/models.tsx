@@ -1,17 +1,19 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/Icon';
 import { localModels, sizeLabel, type LocalModel } from '@/local/catalog';
 import { configForLocal, saveLocalConfig } from '@/local/config';
-import { deviceMemoryGB, downloadModel, fitsMemory, pauseDownload, refreshDownloads, removeModel, saveDownloadToken, useDownloads } from '@/local/models';
+import { account, openLicense, signIn, signInAvailable, signOut } from '@/local/huggingface';
+import { deviceMemoryGB, downloadModel, fitsMemory, GatedError, pauseDownload, refreshDownloads, removeModel, useDownloads } from '@/local/models';
 import { localAvailable, unloadLocal } from '@/local/runtime';
 import { chooseModel, updateSettings, useStore } from '@/store';
 import { font, fs, useColors } from '@/theme';
 import { AnimatedBadge } from '@/ui/animated-badge';
 import { ActionButton } from '@/ui/button-base';
 import { BottomSheet } from '@/ui/bottom-sheet';
+import { confirm } from '@/ui/confirm';
 import { TextField } from '@/ui/input';
 import { SegmentedTabs } from '@/ui/tabs';
 import { Switch } from '@/ui/switch';
@@ -23,23 +25,42 @@ export default function Models() {
   const downloads = useDownloads();
   const selected = useStore(s => s.settings);
   const streaming = useStore(s => s.streamingChat !== null);
-  const [token, setToken] = useState('');
+  const [hfUser, setHfUser] = useState<string | null>(null);
   const [configModel, setConfigModel] = useState<LocalModel | null>(null);
   const [filter, setFilter] = useState('all');
   const run = (p: Promise<unknown>) => p.catch(e => toast.show({ title: 'On-device models', description: String(e?.message ?? e) }));
-  useEffect(() => { void refreshDownloads().catch(() => {}); }, []);
+  useEffect(() => { void refreshDownloads().catch(() => {}); void account().then(setHfUser); }, []);
+  // Gated models, as in Edge Gallery: sign in with Hugging Face when asked, accept the license when asked,
+  // and pick the download back up after each step without another tap.
+  const get = async (m: LocalModel) => {
+    for (let step = 0; ; step++) {
+      try { return await downloadModel(m); }
+      catch (e) {
+        if (!(e instanceof GatedError) || step >= 2) throw e;
+        if (e.status === 401) {
+          if (!signInAvailable) throw e;
+          await signIn();
+          setHfUser(await account());
+        } else {
+          toast.show({ title: 'Accept the license', description: `Agree to ${m.name}'s terms on the page that opens, then come back.` });
+          await openLicense(m.repo);
+        }
+      }
+    }
+  };
   const choose = (id: string) => { chooseModel('on-device', id); updateSettings({ onboarded: true }); toast.show({ title: 'On-device model selected', description: 'Your messages stay on this phone.' }); router.back(); };
-  const remove = (id: string) => Alert.alert('Remove model?', 'The download will be removed. Your conversations remain on this phone.', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Remove', style: 'destructive', onPress: () => run((async () => { await unloadLocal(); await removeModel(id); if (selected.providerId === 'on-device' && selected.model === id) chooseModel('on-device', ''); })()) },
-  ]);
+  const remove = async (m: LocalModel) => {
+    const ok = await confirm({ title: `Remove ${m.name}?`, message: `This frees ${sizeLabel(m.bytes)} on your phone. Your conversations stay, and you can download the model again any time.`, action: 'Remove download', destructive: true });
+    if (!ok) return;
+    await run((async () => { await unloadLocal(); await removeModel(m.id); if (selected.providerId === 'on-device' && selected.model === m.id) chooseModel('on-device', ''); toast.show({ title: `${m.name} removed` }); })());
+  };
   return (
     <><ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
       <View style={{ gap: 8 }}>
         <Icon name="sparkles" size={28} color={c.sage} />
         <Text style={[s.title, { color: c.text }]}>Big ideas. Pocket-sized.</Text>
         <Text style={[s.body, { color: c.secondary }]}>Welcome to Pocket Lab. Download once, then run models offline. Explore all 10 models in Google AI Edge Gallery’s catalog.</Text>
-        <Text style={[s.caption, { color: c.muted }]}>{deviceMemoryGB ? `${deviceMemoryGB.toFixed(1)} GB device memory · ` : ''}Text and documents · No API key for chat</Text>
+        <Text style={[s.caption, { color: c.muted }]}>{deviceMemoryGB ? `${deviceMemoryGB.toFixed(1)} GB device memory · ` : ''}Text, documents and photos with Gemma 4 and Gemma 3n · No API key for chat</Text>
         {!localAvailable ? <Text style={[s.body, { color: c.danger }]}>Available in the Neru Android build with LiteRT-LM. On-device inference is unavailable in Expo Go, the web app and iOS.</Text> : null}
       </View>
       <SegmentedTabs items={[{ value: 'all', label: 'All 10' }, { value: 'chat', label: 'Chat' }, { value: 'tools', label: 'Tools' }, { value: 'segmenter', label: 'Vision' }]} value={filter} onChange={setFilter} />
@@ -56,23 +77,24 @@ export default function Models() {
             <Text style={[s.caption, { color: c.sage }]}>{sizeLabel(m.bytes)}{m.memory ? ` · ${m.memory} GB RAM recommended` : ''} · {m.kind === 'segmenter' ? 'Photo selection' : m.kind === 'tools' ? 'Function calling' : 'Chat'}</Text>
             <Text style={[s.body, { color: c.secondary }]}>{m.description}</Text>
             {!compatible ? <Text style={[s.caption, { color: c.danger }]}>This model exceeds Google’s memory recommendation for this phone.</Text> : null}
-            {busy || phase === 'paused' ? <View style={{ gap: 8 }}><View style={[s.track, { backgroundColor: c.surface3 }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round((d?.progress ?? 0) * 100) }}><View style={{ width: `${(d?.progress ?? 0) * 100}%`, height: 4, backgroundColor: c.moss }} /></View><Text style={[s.caption, { color: c.muted }]}>{phase === 'verifying' ? 'Checking the download…' : `${phase === 'paused' ? 'Paused · ' : ''}${Math.round((d?.progress ?? 0) * 100)}%`}</Text></View> : null}
+            {busy || phase === 'paused' ? <View style={{ gap: 8 }}><View style={[s.track, { backgroundColor: c.surface3 }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round((d?.progress ?? 0) * 100) }}><View style={{ width: `${(d?.progress ?? 0) * 100}%`, height: 4, backgroundColor: c.moss }} /></View><Text style={[s.caption, { color: c.muted }]}>{phase === 'verifying' ? 'Checking the download…' : d?.note && phase === 'downloading' ? `${d.note} · ${Math.round((d?.progress ?? 0) * 100)}%` : `${phase === 'paused' ? 'Paused · ' : ''}${Math.round((d?.progress ?? 0) * 100)}%`}</Text></View> : null}
             {d?.error ? <Text style={[s.caption, { color: c.danger }]}>{d.error}</Text> : null}
-            {ready ? <View style={{ gap: 4 }}><ActionButton title={m.kind === 'segmenter' ? 'Try Magic Touch' : current ? 'Start chatting' : 'Use this model'} disabled={streaming} onPress={() => m.kind === 'segmenter' ? router.push('/magic-touch') : choose(m.id)} /><ActionButton title="Remove download" variant="ghost" disabled={streaming} onPress={() => remove(m.id)} /></View>
+            {ready ? <View style={{ gap: 4 }}><ActionButton title={m.kind === 'segmenter' ? 'Try Magic Touch' : current ? 'Start chatting' : 'Use this model'} disabled={streaming} onPress={() => m.kind === 'segmenter' ? router.push('/magic-touch') : choose(m.id)} /><ActionButton title="Remove download" variant="ghost" disabled={streaming} onPress={() => void remove(m)} /></View>
               : phase === 'downloading' ? <ActionButton title="Pause download" variant="secondary" onPress={() => run(pauseDownload(m.id))} />
-              : <ActionButton title={phase === 'verifying' ? 'Checking download' : phase === 'paused' ? 'Resume download' : `Download · ${sizeLabel(m.bytes)}`} icon="download" loading={phase === 'verifying'} disabled={!localAvailable || !compatible || Object.values(downloads).some(d => d.phase === 'downloading' || d.phase === 'verifying')} variant="secondary" onPress={() => run(downloadModel(m))} />}
+              : <ActionButton title={phase === 'verifying' ? 'Checking download' : phase === 'paused' ? 'Resume download' : `Download · ${sizeLabel(m.bytes)}`} icon="download" loading={phase === 'verifying'} disabled={!localAvailable || !compatible || Object.values(downloads).some(d => d.phase === 'downloading' || d.phase === 'verifying')} variant="secondary" onPress={() => run(get(m))} />}
             <ActionButton title="Model configuration" variant="secondary" disabled={streaming} onPress={() => setConfigModel(m)} />
             <ActionButton title="Model details and terms" variant="ghost" onPress={() => run(Linking.openURL(m.url ? 'https://developers.google.com/edge/mediapipe/solutions/vision/interactive_segmenter' : `https://huggingface.co/${m.repo}`))} />
           </View>
         );
       })}
-      <View style={{ gap: 12 }}>
-        <Text style={[s.name, { color: c.text }]}>For gated downloads</Text>
-        <Text style={[s.body, { color: c.secondary }]}>Some models require accepting Google’s terms on Hugging Face. Save a read token after accepting them. The token is kept in your phone’s secure storage and is only used to download models.</Text>
-        <TextField label="Hugging Face read token" value={token} onChangeText={setToken} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="hf_…" />
-        <ActionButton title="Save download token" disabled={!token.trim()} variant="secondary" onPress={() => run(saveDownloadToken(token).then(() => { setToken(''); toast.show({ title: 'Download token saved' }); }))} />
-        <ActionButton title="Clear download token" variant="ghost" onPress={() => run(saveDownloadToken('').then(() => toast.show({ title: 'Download token cleared' })))} />
-      </View>
+      {/* Hugging Face only comes up when a model asks for its license; once signed in, the account can be signed out here. */}
+      {hfUser ? (
+        <View style={[s.card, { backgroundColor: c.surface2, borderColor: c.border }]}>
+          <Text style={[s.name, { color: c.text }]}>Hugging Face</Text>
+          <Text style={[s.body, { color: c.secondary }]}>Signed in as {hfUser}. Models with a license, like the Gemma 3 family, download with this account.</Text>
+          <ActionButton title="Sign out" variant="ghost" onPress={() => run(signOut().then(() => { setHfUser(null); toast.show({ title: 'Signed out of Hugging Face' }); }))} />
+        </View>
+      ) : null}
     </ScrollView>{configModel ? <ModelConfig key={configModel.id} model={configModel} onClose={() => setConfigModel(null)} /> : null}</>
   );
 }

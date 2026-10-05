@@ -1,6 +1,6 @@
 // Offers a newer release as soon as Neru opens: the illustrated hero, the release notes, and one tap to download
 // the new APK. "Later" hides that version until the next one ships. After installing, What's New takes over.
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Linking, Text, View } from 'react-native';
 
 import { appVersion, Hero } from '@/components/WhatsNew';
@@ -8,7 +8,7 @@ import { updateSettings, useStore } from '@/store';
 import { font, fs, useColors } from '@/theme';
 import { BottomSheet } from '@/ui/bottom-sheet';
 import { ActionButton } from '@/ui/button-base';
-import { checkForUpdate, type Update } from '@/update';
+import { checkForUpdate, offerUpdate, useOfferedUpdate } from '@/update';
 
 // Release bodies are Markdown; the sheet shows the bullet points as plain lines.
 const highlights = (md: string) =>
@@ -25,10 +25,10 @@ export function UpdatePrompt() {
   const skipped = useStore(s => s.settings.skippedUpdate);
   // What's New for the running version comes first; the update offer waits until it is dismissed.
   const caughtUp = useStore(s => s.settings.seenVersion === appVersion);
-  const [update, setUpdate] = useState<Update | null>(null);
+  const update = useOfferedUpdate();
 
   useEffect(() => {
-    if (onboarded) void checkForUpdate().then(setUpdate);
+    if (onboarded) void checkForUpdate().then(offerUpdate);
   }, [onboarded]);
 
   const open = !!update && caughtUp && update.version !== skipped;
@@ -36,7 +36,7 @@ export function UpdatePrompt() {
   const install = () => {
     if (!update) return;
     void Linking.openURL(update.url);
-    setUpdate(null);
+    offerUpdate(null);
   };
 
   return (

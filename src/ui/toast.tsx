@@ -5,7 +5,7 @@
 // sideways (elastic 0.18; past 72px or 520px/s). Not ported: blur on enter/exit
 // and the surface's backdrop blur, other statuses/positions, renderToast. Toasts
 // render in the app window, so they sit under an open RN Modal.
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -134,7 +134,7 @@ function ToastItem({ toast, index, onDismiss }: { toast: Toast; index: number; o
                   accessibilityRole="button"
                   hitSlop={10}
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    haptic.light();
                     toast.action?.onPress();
                   }}
                   style={({ pressed }) => [s.action, { backgroundColor: pressed ? c.surface3 : `${c.surface3}CC` }]}

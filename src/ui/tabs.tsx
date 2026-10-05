@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
+import { haptic } from '@/haptics';
 import { font, fs, useColors } from '@/theme';
 
 const TAB_SPRING = { stiffness: 245, damping: 36, mass: 1.2 };
@@ -52,7 +53,10 @@ export function SegmentedTabs({ items, value, onChange }: { items: Item[]; value
           accessibilityState={{ selected: item.value === value }}
           accessibilityLabel={item.label}
           hitSlop={{ top: 4, bottom: 4 }}
-          onPress={() => onChange(item.value)}
+          onPress={() => {
+            if (item.value !== value) haptic.select();
+            onChange(item.value);
+          }}
           onLayout={(e) => {
             const { x: bx, width } = e.nativeEvent.layout;
             setBoxes((prev) => (prev[item.value]?.x === bx && prev[item.value]?.w === width ? prev : { ...prev, [item.value]: { x: bx, w: width } }));

@@ -8,7 +8,7 @@
 // instead of beUI's 4% rubber band (kept at the closed edge). Not ported:
 // left-side actions, closing the other rows when one opens (no shared list
 // state), action tones (callers pass the icon colour).
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -53,7 +53,7 @@ export function SwipeableRow({ children, actions }: { children: ReactNode; actio
     settle(side ? -railWidth : 0, velocity);
   };
   const run = (action: Action) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    haptic.light();
     action.onPress();
     setOpen(false);
     settle(0);
@@ -76,7 +76,7 @@ export function SwipeableRow({ children, actions }: { children: ReactNode; actio
       const nowArmed = -next > fullAt;
       if (nowArmed !== armed.get()) {
         armed.set(nowArmed);
-        scheduleOnRN(Haptics.selectionAsync);
+        scheduleOnRN(haptic.select);
       }
     })
     .onEnd((e) => {

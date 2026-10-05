@@ -12,7 +12,7 @@
 ![React Native](https://img.shields.io/badge/React%20Native-0.8x-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%C2%B7%20iOS-64806a)
-![Version](https://img.shields.io/badge/version-0.10.0-54745b)
+![Version](https://img.shields.io/badge/version-0.11.0-54745b)
 
 <img src="assets/images/whats-new-parchment.png" width="640" alt="Neru in a landscape of layered paper hills on warm parchment" />
 
@@ -29,9 +29,10 @@
 | 👥 **Team, remotely** | Follow a desktop Team thread, @-mention the models on your PC and start new tasks from your phone. |
 | 🌍 **Across networks** | Turn on *Connect over the internet* on the desktop to reach it from mobile data or another Wi-Fi network. |
 | 🎙️ **Just say it** | Dictate with the platform speech recognizer while a sound-reactive glow listens with you. |
-| 🧪 **Pocket Lab** | Download models from Google AI Edge Gallery and run them **offline** on Android with LiteRT-LM. |
+| 🧪 **Pocket Lab** | Download every model in Google AI Edge Gallery and run them **offline** on Android with LiteRT-LM. Gemma 4 and Gemma 3n understand the photos you attach. |
 | ✨ **Magic Touch** | Tap an object in a photo to cut it out, entirely on-device. |
-| 🔔 **Never miss an approval** | Get notified when a desktop session is waiting on you. |
+| 🔔 **Notifications** | Hear when a reply is ready, a desktop session needs you or finishes, or a team is done, even with Neru in the background. |
+| ⬆️ **Updates find you** | New releases are offered in the app, and Settings can check any time. |
 
 ## Design
 

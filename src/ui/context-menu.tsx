@@ -9,7 +9,7 @@
 // right-click and keyboard opening, arrow-key/typeahead focus and the gliding
 // hover highlight (rows show a pressed fill instead), checkbox/radio/label/
 // separator/shortcut parts.
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -43,7 +43,7 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
   const lift = useSharedValue(1);
 
   const openAt = (p: Point) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    haptic.medium();
     setSize(null);
     setPoint(p);
     setOpen(true);
@@ -97,7 +97,7 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
           key={item.label}
           accessibilityRole="menuitem"
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            haptic.light();
             item.onPress();
             close();
           }}

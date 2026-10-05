@@ -2,9 +2,9 @@
 // and the volume drives the voice glow.
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useRef, useState } from 'react';
-import { Alert } from 'react-native';
 
 import { getState } from '@/store';
+import { notice } from '@/ui/confirm';
 
 export type VoiceState = 'idle' | 'listening' | 'processing';
 
@@ -29,12 +29,12 @@ export function useVoice(onText: (text: string) => void, currentText: string) {
   useSpeechRecognitionEvent('error', e => {
     setState('idle');
     setLevel(0);
-    if (e.error !== 'aborted' && e.error !== 'no-speech') Alert.alert('Voice input', e.message || 'Speech recognition stopped.');
+    if (e.error !== 'aborted' && e.error !== 'no-speech') void notice({ title: 'Dictation stopped', message: e.message || 'Speech recognition stopped. Try again in a moment.', icon: 'mic' });
   });
 
   const start = async () => {
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!perm.granted) return Alert.alert('Microphone access', 'Allow Neru to use the microphone and speech recognition in your phone settings to dictate.');
+    if (!perm.granted) return void notice({ title: 'Allow the microphone', message: 'Neru needs the microphone and speech recognition to turn your voice into text. You can allow them in your phone’s settings.', icon: 'mic', settings: true });
     base.current = currentText;
     finals.current = '';
     setState('listening');

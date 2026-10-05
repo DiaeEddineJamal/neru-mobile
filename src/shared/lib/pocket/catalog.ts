@@ -2,8 +2,8 @@
 import gallery from './gallery-models.json';
 
 export type LocalConfig = { systemPrompt: string; maxTokens: number; contextTokens: number; topK: number; topP: number; temperature: number; accelerator: 'cpu' | 'gpu'; thinking: boolean; speculative: boolean };
-export type LocalModel = { id: string; name: string; repo: string; file: string; revision: string; bytes: number; memory: number; description: string; url?: string; sha256?: string; kind: 'chat' | 'tools' | 'segmenter'; accelerators: ('cpu' | 'gpu')[]; thinking: boolean; speculative: boolean; maxContext: number; defaults: LocalConfig };
-type GalleryModel = { name: string; modelId: string; modelFile: string; description: string; commitHash: string; sizeInBytes: number; minDeviceMemoryInGb?: number; url?: string; capabilities?: string[]; defaultConfig?: { topK: number; topP: number; temperature: number; maxTokens: number; maxContextLength?: number; accelerators: string }; taskTypes: string[] };
+export type LocalModel = { id: string; name: string; repo: string; file: string; revision: string; bytes: number; memory: number; description: string; url?: string; sha256?: string; kind: 'chat' | 'tools' | 'segmenter'; /** Understands attached images (Edge Gallery's llmSupportImage). */ vision: boolean; accelerators: ('cpu' | 'gpu')[]; thinking: boolean; speculative: boolean; maxContext: number; defaults: LocalConfig };
+type GalleryModel = { name: string; modelId: string; modelFile: string; description: string; commitHash: string; sizeInBytes: number; minDeviceMemoryInGb?: number; url?: string; llmSupportImage?: boolean; capabilities?: string[]; defaultConfig?: { topK: number; topP: number; temperature: number; maxTokens: number; maxContextLength?: number; accelerators: string }; taskTypes: string[] };
 const ids: Record<string, string> = { 'Gemma-4-E2B-it': 'gemma-4-e2b', 'Gemma-4-E4B-it': 'gemma-4-e4b', 'Gemma3-1B-IT': 'gemma-3-1b', 'Gemma-3n-E2B-it': 'gemma-3n-e2b', 'Gemma-3n-E4B-it': 'gemma-3n-e4b' };
 // Gallery's published MTP updates, verified against Hugging Face file metadata.
 const updates: Record<string, { revision: string; bytes: number; sha256: string }> = {
@@ -19,6 +19,7 @@ export const localModels: LocalModel[] = (gallery.models as GalleryModel[]).map(
     description: m.description.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'), url: m.url,
     sha256: updates[m.name]?.sha256 ?? (m.modelId === 'magic_touch' ? '38431bc66b883404e8397f74c3579404315b9b52b04a46c6346fe906a7309b03' : undefined),
     kind: m.taskTypes.includes('mp_scrapbook') ? 'segmenter' : m.taskTypes.includes('llm_chat') ? 'chat' : 'tools',
+    vision: m.llmSupportImage ?? false,
     accelerators, thinking: m.capabilities?.includes('llm_thinking') ?? false, speculative: m.capabilities?.includes('speculative_decoding') ?? false,
     maxContext: config?.maxContextLength ?? config?.maxTokens ?? 4096,
     // Advertise the full model limit, but start with a context that fits ordinary devices.

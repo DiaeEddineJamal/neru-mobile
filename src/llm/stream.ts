@@ -5,7 +5,7 @@ import { fetch } from 'expo/fetch';
 import type { ApiFormat } from '@/shared/providerCatalog';
 
 export type ProviderConfig = { providerId: string; baseUrl: string; apiKey: string; model: string; format: ApiFormat };
-export type ChatImage = { mime: string; base64: string };
+export type ChatImage = { mime: string; base64: string; /** Local file, for on-device models. */ uri?: string };
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; text: string; images?: ChatImage[] };
 export type StreamHandlers = { onDelta: (text: string) => void; onReasoning?: (text: string) => void };
 

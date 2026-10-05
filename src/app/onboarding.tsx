@@ -2,20 +2,19 @@
 // Onboarding"); one decision per screen and plain words (Krug, Hick's law); teach by doing, ask for
 // permissions only in context, let people skip (Apple HIG onboarding, Material 3); thumb-zone actions
 // at the bottom (Hoober); progress always visible and reversible (Nielsen: visibility, user control).
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, SlideInRight, SlideOutLeft, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, SlideInRight, SlideOutLeft, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, IconButton, type IconName } from '@/components/Icon';
-import VoiceGlow from '@/components/VoiceGlow';
 import { appVersion } from '@/components/WhatsNew';
 import { score } from '@/llm/fallback';
 import { chooseModel, getState, presetOf, saveProviderKey, testKey, updateSettings } from '@/store';
-import { font, fs, useColors, useScheme } from '@/theme';
+import { font, fs, useColors } from '@/theme';
 import { ActionButton } from '@/ui/button-base';
 import { TextField } from '@/ui/input';
 import { EASE_OUT, SPRING_LAYOUT } from '@/ui/motion';
@@ -43,21 +42,6 @@ const tour: [IconName, string, string][] = [
   ['desktop', 'Stay close to your desktop', 'Follow coding sessions, read diffs and approve changes from anywhere in the house.'],
   ['mic', 'Just say it', 'Tap the mic and talk. The glow listens with you.'],
 ];
-
-/** A soft synthetic voice so the glow breathes on the welcome screens without a microphone. */
-function useDemoLevel(on: boolean) {
-  const [level, setLevel] = useState(0.15);
-  useEffect(() => {
-    if (!on) return;
-    const t0 = Date.now();
-    const id = setInterval(() => {
-      const t = (Date.now() - t0) / 1000;
-      setLevel(0.18 + 0.22 * Math.max(0, Math.sin(t * 2.1) * Math.sin(t * 0.7 + 1)) + 0.06 * Math.sin(t * 5.3));
-    }, 90);
-    return () => clearInterval(id);
-  }, [on]);
-  return level;
-}
 
 function Progress({ index, total }: { index: number; total: number }) {
   const c = useColors();
@@ -99,7 +83,6 @@ function Mascot({ size }: { size: number }) {
 
 export default function Onboarding() {
   const c = useColors();
-  const scheme = useScheme();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>('welcome');
   const [path, setPath] = useState('free');
@@ -107,11 +90,10 @@ export default function Onboarding() {
   const [key, setKey] = useState('');
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const level = useDemoLevel(step === 'welcome' || step === 'tour');
 
   const index = ORDER.indexOf(step);
   const go = (next: Step) => {
-    Haptics.selectionAsync();
+    haptic.select();
     setError(undefined);
     setStep(next);
   };
@@ -129,10 +111,10 @@ export default function Onboarding() {
       const models = await testKey(provider, key);
       await saveProviderKey(provider, key);
       if (models.length) chooseModel(provider, [...models].sort((a, b) => score(b) - score(a))[0]);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      haptic.success();
       setStep('done');
     } catch (err) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      haptic.error();
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
@@ -244,11 +226,6 @@ export default function Onboarding() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      {step === 'welcome' || step === 'tour' ? (
-        <Animated.View entering={FadeIn.duration(800)} exiting={FadeOut} pointerEvents="none" style={StyleSheet.absoluteFill}>
-          <VoiceGlow type="mobile" level={level} processing={false} light={scheme === 'light'} dom={{ style: { flex: 1, backgroundColor: 'transparent' }, scrollEnabled: false }} />
-        </Animated.View>
-      ) : null}
 
       <View style={[s.top, { paddingTop: insets.top + 8 }]}>
         {index > 0 && step !== 'done' ? <IconButton name="chevronLeft" label="Back" color={c.text} onPress={() => go(ORDER[index - 1])} /> : <View style={{ width: 48 }} />}

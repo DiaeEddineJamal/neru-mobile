@@ -1,6 +1,6 @@
 // Starts a Team task on the paired desktop, like its New task dialog: pick agents (and models), a project,
 // what they may do, then the first message. The task then opens here and in the drawer's Team list.
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -73,7 +73,7 @@ export default function NewTeamTask() {
   }, [connected, toast, loadModels]);
 
   const toggle = (kind: string) => {
-    Haptics.selectionAsync();
+    haptic.select();
     if (!picked.includes(kind)) loadModels([kind]);
     setPicked(current => (current.includes(kind) ? current.filter(k => k !== kind) : [...current, kind]));
   };
@@ -85,7 +85,7 @@ export default function NewTeamTask() {
     try {
       const title = prompt.split('\n')[0].slice(0, 60);
       const task = await createTeamTask({ title, projectPath: where, members: picked.map(kind => ({ kind, model: models[kind] ?? '', mode })), text: prompt, to: everyone ? ['all'] : [] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      haptic.success();
       router.dismissTo(`/team/${task.id}`);
     } catch (err) {
       toast.show({ title: 'The desktop did not start the task', description: String(err instanceof Error ? err.message : err) });

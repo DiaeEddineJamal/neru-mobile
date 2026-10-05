@@ -91,7 +91,7 @@ class NeruLocalAiModule : Module() {
         digest.digest().joinToString("") { "%02x".format(it) }.equals(hash, ignoreCase = true)
       }
     }
-    AsyncFunction("generate") Coroutine { requestId: String, uri: String, messages: List<Map<String, String>>, settings: Map<String, Any?> ->
+    AsyncFunction("generate") Coroutine { requestId: String, uri: String, messages: List<Map<String, Any?>>, settings: Map<String, Any?> ->
       lock.withLock {
         cancelled.set(false)
         val context = appContext.reactContext ?: error("Neru is not ready.")
@@ -104,24 +104,36 @@ class NeruLocalAiModule : Module() {
             val contextTokens = (settings["contextTokens"] as? Number)?.toInt() ?: 4096
             val maxTokens = (settings["maxTokens"] as? Number)?.toInt() ?: 1024
             require(contextTokens in 512..32000 && maxTokens in 1..contextTokens)
-            val engineKey = "${file.path}|$accelerator|$contextTokens"
+            val vision = settings["vision"] == true
+            val engineKey = "${file.path}|$accelerator|$contextTokens|$vision"
             if (engine == null || loadedPath != engineKey) {
               engine?.close()
               engine = null
               loadedPath = ""
               sendEvent("status", mapOf("requestId" to requestId, "phase" to "loading"))
               val backend = if (accelerator == "gpu") Backend.GPU() else Backend.CPU()
-              val next = Engine(EngineConfig(modelPath = file.path, backend = backend, maxNumTokens = contextTokens, cacheDir = context.cacheDir.path))
-              try { next.initialize() } catch (e: Throwable) { next.close(); throw e }
-              engine = next
+              fun start(visionBackend: Backend?): Engine {
+                val next = Engine(EngineConfig(modelPath = file.path, backend = backend, visionBackend = visionBackend, maxNumTokens = contextTokens, cacheDir = context.cacheDir.path))
+                try { next.initialize() } catch (e: Throwable) { next.close(); throw e }
+                return next
+              }
+              // Image models need a vision encoder backend; Edge Gallery runs it on GPU. Fall back to CPU if the GPU refuses.
+              engine = if (!vision) start(null) else try { start(Backend.GPU()) } catch (e: Throwable) { start(Backend.CPU()) }
               loadedPath = engineKey
             }
             if (cancelled.get()) return@withContext
             val history = messages.filter { it["role"] != "system" }
             require(history.isNotEmpty() && history.last()["role"] == "user") { "A user message is required." }
-            val initial = history.dropLast(1).takeLast(12).map {
-              if (it["role"] == "assistant") Message.model(it["text"] ?: "") else Message.user(it["text"] ?: "")
+            fun contents(m: Map<String, Any?>): Contents {
+              val images = (m["images"] as? List<*>).orEmpty().map { it as String }
+              require(images.isEmpty() || vision) { "This model reads text only." }
+              // Images first, then the text, as Edge Gallery sends them.
+              return Contents.of(images.map { Content.ImageBytes(imageBytes(context, it)) } + Content.Text(m["text"] as? String ?: ""))
             }
+            val initial = history.dropLast(1).takeLast(12).map {
+              if (it["role"] == "assistant") Message.model(it["text"] as? String ?: "") else Message.user(contents(it))
+            }
+            val prompt = contents(history.last())
             val system = settings["systemPrompt"] as? String ?: "You are Neru, a helpful assistant."
             val config = ConversationConfig(systemInstruction = Contents.of(system), initialMessages = initial,
               samplerConfig = SamplerConfig(topK = (settings["topK"] as? Number)?.toInt() ?: 64, topP = (settings["topP"] as? Number)?.toDouble() ?: 0.95, temperature = (settings["temperature"] as? Number)?.toDouble() ?: 1.0),
@@ -132,7 +144,7 @@ class NeruLocalAiModule : Module() {
               conversation = chat
               if (!cancelled.get()) {
                 sendEvent("status", mapOf("requestId" to requestId, "phase" to "generating"))
-                chat.sendMessageAsync(history.last()["text"] ?: "").collect { message ->
+                chat.sendMessageAsync(prompt).collect { message ->
                   if (cancelled.get()) chat.cancelProcess()
                   else sendEvent("token", mapOf("requestId" to requestId, "text" to message.toString(), "reasoning" to (message.channels["analysis"] ?: message.channels["thought"] ?: "")))
                 }
@@ -155,4 +167,30 @@ class NeruLocalAiModule : Module() {
       scope.launch { lock.withLock { engine?.close(); engine = null }; scope.cancel() }
     }
   }
+
+  /** A picked photo, downscaled to a long edge of at most 1024 px and re-encoded as PNG so memory stays bounded. */
+  private fun imageBytes(context: android.content.Context, uri: String): ByteArray {
+    val file = File(URI(uri)).canonicalFile
+    require((file.path.startsWith(context.cacheDir.canonicalPath + File.separator) || file.path.startsWith(context.filesDir.canonicalPath + File.separator)) && file.isFile) { "This image is no longer available." }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.path, bounds)
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_EDGE) sample *= 2
+    val decoded = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: error("This image could not be opened.")
+    // Camera photos are often stored sideways with an EXIF orientation; the model must see them upright.
+    val degrees = when (android.media.ExifInterface(file.path).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL)) {
+      android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+      android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+      android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+      else -> 0f
+    }
+    val scale = minOf(1f, MAX_EDGE.toFloat() / maxOf(decoded.width, decoded.height))
+    val matrix = android.graphics.Matrix().apply { postScale(scale, scale); postRotate(degrees) }
+    val bitmap = if (scale < 1f || degrees != 0f) Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true) else decoded
+    try {
+      return java.io.ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    } finally { if (bitmap !== decoded) bitmap.recycle(); decoded.recycle() }
+  }
+
+  private companion object { const val MAX_EDGE = 1024 }
 }

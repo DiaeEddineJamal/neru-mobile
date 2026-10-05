@@ -7,7 +7,16 @@ import { useSyncExternalStore } from 'react';
 import { kvGetSync, kvSet } from '@/db';
 import { localModel, localModels, modelUrl, type LocalModel } from '@/local/catalog';
 
-export type Download = { phase: 'available' | 'downloading' | 'paused' | 'verifying' | 'ready' | 'error'; progress: number; error?: string };
+export type Download = { phase: 'available' | 'downloading' | 'paused' | 'verifying' | 'ready' | 'error'; progress: number; error?: string; note?: string };
+
+// A dropped connection or a busy server is retried on its own, resuming from the bytes already saved.
+const RETRY_SECONDS = [2, 4, 8, 15, 30];
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+class Transient extends Error {}
+/** A gated model: 401 means sign in to Hugging Face, 403 means accept the model's license there. */
+export class GatedError extends Error {
+  constructor(readonly status: 401 | 403) { super(status === 401 ? 'Sign in with Hugging Face to download this model.' : 'Accept this model’s license on Hugging Face to download it.'); }
+}
 let states: Record<string, Download> = {};
 const listeners = new Set<() => void>();
 const tasks = new Map<string, FS.DownloadResumable>();
@@ -35,7 +44,6 @@ export async function installedUri(id: string) {
   if (!info.exists || info.size !== m.bytes) throw new Error('Download this model in Settings → Pocket Lab first.');
   return uriOf(m);
 }
-export async function saveDownloadToken(token: string) { await SecureStore.setItemAsync('models.huggingface', token.trim()); }
 export const deviceMemoryGB = Device.totalMemory ? Device.totalMemory / 1e9 : null;
 export const fitsMemory = (m: LocalModel) => deviceMemoryGB === null || Math.round(deviceMemoryGB) >= m.memory;
 
@@ -54,7 +62,8 @@ export async function downloadModel(m: LocalModel) {
     let hash = m.sha256;
     if (!hash) {
       const metadata = await fetch(`https://huggingface.co/api/models/${m.repo}/revision/${m.revision}?blobs=true`, { headers });
-      if (!metadata.ok) throw new Error(metadata.status === 401 || metadata.status === 403 ? 'Accept the model terms on Hugging Face and save a read token below.' : `Model information could not be fetched (${metadata.status}).`);
+      if (metadata.status === 401 || metadata.status === 403) throw new GatedError(token ? metadata.status : 401);
+      if (!metadata.ok) throw new Error(`Model information could not be fetched (${metadata.status}).`);
       const body = await metadata.json() as { siblings: { rfilename: string; lfs?: { sha256: string } }[] };
       hash = body.siblings.find(f => f.rfilename === m.file)?.lfs?.sha256;
     }
@@ -65,11 +74,39 @@ export async function downloadModel(m: LocalModel) {
     const partialInfo = await FS.getInfoAsync(partial);
     const free = await FS.getFreeDiskStorageAsync();
     if (free < m.bytes - (partialInfo.exists ? partialInfo.size : 0) + 300_000_000) throw new Error('Free up storage before downloading this model.');
-    const task = new FS.DownloadResumable(modelUrl(m), partial, { headers }, p => change(m.id, { phase: 'downloading', progress: Math.min(1, p.totalBytesWritten / m.bytes) }), resume?.data);
-    tasks.set(m.id, task);
-    const result = resume ? await task.resumeAsync() : await task.downloadAsync();
-    if (!result) return; // paused; the pause handler saved the resume data
-    if (result.status !== 200 && result.status !== 206) throw new Error(result.status === 401 || result.status === 403 ? 'Accept the model terms on Hugging Face and add a read token.' : `Download failed (${result.status}).`);
+    const onProgress = (p: FS.DownloadProgressData) => change(m.id, { phase: 'downloading', progress: Math.min(1, p.totalBytesWritten / m.bytes) });
+    let task = new FS.DownloadResumable(modelUrl(m), partial, { headers }, onProgress, resume?.data);
+    let result: FS.FileSystemDownloadResult | undefined;
+    for (let attempt = 0; ; attempt++) {
+      tasks.set(m.id, task);
+      try {
+        result = attempt === 0 && !resume ? await task.downloadAsync() : await task.resumeAsync();
+        if (!result) return; // paused; the pause handler saved the resume data
+        if (result.status === 401 || result.status === 403) throw new GatedError(token ? result.status : 401);
+        if (result.status === 429 || result.status >= 500) throw new Transient(`The model server is busy (${result.status}).`);
+        if (result.status !== 200 && result.status !== 206) throw new Error(`Download failed (${result.status}).`);
+        break;
+      } catch (err) {
+        if (states[m.id]?.phase === 'paused') return;
+        const message = err instanceof Error ? err.message : String(err);
+        if (err instanceof GatedError || (!(err instanceof Transient) && /^Download failed/.test(message))) throw err;
+        const data = task.savable().resumeData;
+        const progress = states[m.id]?.progress ?? 0;
+        if (attempt >= RETRY_SECONDS.length) {
+          // Out of retries: keep every byte so Resume picks up where the connection dropped.
+          await kvSet(`model.resume.${m.id}`, JSON.stringify({ data, progress }));
+          change(m.id, { phase: 'paused', progress, error: 'The connection dropped and Neru could not reconnect. Your progress is saved — tap Resume when you are back online.' });
+          return;
+        }
+        for (let left = RETRY_SECONDS[attempt]; left > 0; left--) {
+          if (states[m.id]?.phase === 'paused') return;
+          change(m.id, { phase: 'downloading', progress, note: `Connection lost · retrying in ${left}s` });
+          await sleep(1000);
+        }
+        change(m.id, { phase: 'downloading', progress, note: 'Reconnecting…' });
+        task = new FS.DownloadResumable(modelUrl(m), partial, { headers }, onProgress, data);
+      }
+    }
     change(m.id, { phase: 'verifying', progress: 1 });
     const info = await FS.getInfoAsync(partial);
     if (!info.exists || info.size !== m.bytes || !(await verify.verifyFile(partial, hash))) {
@@ -88,7 +125,8 @@ export async function downloadModel(m: LocalModel) {
 export async function pauseDownload(id: string) {
   const task = tasks.get(id);
   if (!task) return;
-  const saved = await task.pauseAsync();
+  // While waiting to retry, the task already stopped; its saved state is the resume point.
+  const saved = await task.pauseAsync().catch(() => task.savable());
   const progress = states[id]?.progress ?? 0;
   await kvSet(`model.resume.${id}`, JSON.stringify({ data: saved.resumeData, progress }));
   change(id, { phase: 'paused', progress });

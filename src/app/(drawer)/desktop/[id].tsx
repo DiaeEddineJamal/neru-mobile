@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import { useEffect, useRef, useState } from 'react';
@@ -79,7 +79,7 @@ export default function DesktopSession() {
 
   const run = (p: Promise<unknown>, failure: string) => p.catch(err => toast.show({ title: failure, description: String(err?.message ?? err) }));
   const answer = (approve: boolean, always = false) => {
-    Haptics.notificationAsync(approve ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);
+    if (approve) haptic.success(); else haptic.warning();
     run(answerApproval(id, approve, always), 'Your answer did not reach the desktop');
   };
   const send = async (value: string) => {

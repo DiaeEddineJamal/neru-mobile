@@ -9,10 +9,11 @@ import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
-import { startApprovalNotifications } from '@/notify';
+import { startNotifications } from '@/notify';
 import { restorePairing, wakeRemote } from '@/remote/store';
 import { getState } from '@/store';
 import { font, useColors, useScheme } from '@/theme';
+import { DialogHost } from '@/ui/confirm';
 import { ToastProvider } from '@/ui/toast';
 
 SplashScreen.preventAutoHideAsync();
@@ -24,7 +25,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     void restorePairing();
-    const stopNotify = startApprovalNotifications();
+    const stopNotify = startNotifications();
     // Phones drop sockets in the background; reconnect as soon as Neru is back on screen.
     const sub = AppState.addEventListener('change', s => s === 'active' && wakeRemote());
     return () => (stopNotify(), sub.remove());
@@ -60,6 +61,7 @@ export default function RootLayout() {
             <Stack.Screen name="diff/[session]/[event]" options={{ ...modal, title: 'Changes' }} />
             <Stack.Screen name="changelog" options={{ ...modal, title: "What's new" }} />
           </Stack>
+          <DialogHost />
         </ToastProvider>
       </ThemeProvider>
       </KeyboardProvider>

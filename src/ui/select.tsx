@@ -4,7 +4,7 @@
 // beUI's. Not ported: the gooey trigger/panel morph (the sheet replaces the
 // inline dropdown), the rows' 3px blur and hover fill. Rows are 48 tall instead of
 // ~32 for touch, and an optional description line is a Neru addition.
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { type EntryExitAnimationFunction, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 
@@ -43,7 +43,7 @@ export function SelectSheet({ open, onClose, title, options, value, onChange }: 
                 accessibilityState={{ checked: selected }}
                 accessibilityLabel={o.description ? `${o.label}, ${o.description}` : o.label}
                 onPress={() => {
-                  Haptics.selectionAsync();
+                  haptic.select();
                   onChange(o.value);
                   onClose();
                 }}

@@ -29,6 +29,7 @@ import Animated, {
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { haptic } from '@/haptics';
 import { font, useColors } from '@/theme';
 import { EASE_IN_OUT, EASE_OUT, SPRING_PANEL, SPRING_SWAP } from '@/ui/motion';
 
@@ -75,6 +76,7 @@ export function PullToRefreshScrollView({ refreshing, onRefresh, ref, style, onS
   }, [isRefreshing, reduce, busy, y]);
 
   const runRefresh = async () => {
+    haptic.light();
     setInternal(true);
     try {
       await onRefresh();

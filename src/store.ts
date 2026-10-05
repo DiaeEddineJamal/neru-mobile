@@ -63,6 +63,8 @@ export function useStore<T>(pick: (s: State) => T): T {
 }
 
 export const getState = () => state;
+/** Called on every store change, for code outside React (notifications). */
+export const subscribe = (l: () => void) => (listeners.add(l), () => void listeners.delete(l));
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 // ---- settings and keys ----
@@ -154,9 +156,9 @@ const SYSTEM =
   'You are Neru, a helpful assistant in the Neru mobile app. Answer clearly and concisely; the reader is on a phone, so prefer short paragraphs and lists. Use Markdown, and fenced code blocks with a language for code.';
 
 async function imagePart(a: Attachment) {
-  if (a.base64) return { mime: a.mime, base64: a.base64 };
+  if (a.base64) return { mime: a.mime, base64: a.base64, uri: a.uri };
   try {
-    return { mime: a.mime, base64: await new File(a.uri).base64() };
+    return { mime: a.mime, base64: await new File(a.uri).base64(), uri: a.uri };
   } catch {
     return null; // the picked file is gone; send the turn without it
   }

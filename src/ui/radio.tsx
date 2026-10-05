@@ -2,7 +2,7 @@
 // The indicator and its dot follow beUI (2px ring, inset dot on SPRING_LAYOUT, 0.92 press on SPRING_PRESS).
 // Each item is a full card here so the whole row is the touch target. beUI's shared-layout dot that
 // glides between items has no RN equivalent; the dot scales in on the newly selected item instead.
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -32,7 +32,7 @@ function RadioCard({ option, selected, onPress }: { option: RadioOption; selecte
   return (
     <Pressable
       onPress={() => {
-        Haptics.selectionAsync();
+        haptic.select();
         onPress();
       }}
       onPressIn={() => !reduce && press.set(withSpring(0.98, SPRING_PRESS))}

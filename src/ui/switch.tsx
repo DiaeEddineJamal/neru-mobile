@@ -3,7 +3,7 @@
 // a 4px stretch toward the destination) and the 200ms track colour; a press on a
 // disabled switch shakes the thumb after 200ms. Not ported: focus-visible ring
 // and the optional inline label (wrap it in a row yourself).
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
@@ -50,7 +50,7 @@ export function Switch({ value, onValueChange, disabled, accessibilityLabel }: P
       onPressOut={() => setPressed(false)}
       onPress={() => {
         if (disabled) return;
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        haptic.light();
         onValueChange(!value);
       }}
       style={disabled ? s.disabled : undefined}

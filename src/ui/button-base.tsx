@@ -5,7 +5,7 @@
 // and `loading`, which trades the label for the shared LoaderCircle spinner on SPRING_SWAP (the token
 // beUI reserves for label/icon slot swaps) while keeping the button's width.
 // Not ported: hover lift (no hover on touch), the opt-in ripple.
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { useEffect } from 'react';
 import { Pressable, type StyleProp, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -65,7 +65,7 @@ export function ActionButton({ title, onPress, variant = 'primary', icon, loadin
       onPressIn={() => press(PRESS_SCALE)}
       onPressOut={() => press(1)}
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        haptic.light();
         onPress();
       }}
       style={[s.base, { backgroundColor: look.bg, borderColor: look.border }, disabled && s.disabled, pressStyle, style]}

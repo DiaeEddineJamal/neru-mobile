@@ -1,5 +1,38 @@
 [
   {
+    "version": "0.11.0",
+    "date": "2026-10-05",
+    "title": "It can see now",
+    "summary": "Show a photo to a model running on your phone, hear back when replies land, and feel every tap.",
+    "items": [
+      {
+        "icon": "photo",
+        "title": "Models that see",
+        "text": "Gemma 4 and Gemma 3n in Pocket Lab now look at the photos you attach and answer about them, entirely on your phone."
+      },
+      {
+        "icon": "bell",
+        "title": "Notifications that matter",
+        "text": "Leave the app while Neru works. You’ll hear when a reply is ready, a desktop session needs you or finishes, or your team is done."
+      },
+      {
+        "icon": "check",
+        "title": "Haptics, your way",
+        "text": "Gentle taps when you send, switch and confirm, with a switch in Settings to turn them off."
+      },
+      {
+        "icon": "download",
+        "title": "Check for updates",
+        "text": "Settings has an Updates section to look for a new version any time. Downloads in Pocket Lab also retry on their own when the connection drops."
+      },
+      {
+        "icon": "sparkles",
+        "title": "Neru, through and through",
+        "text": "Confirmations and permission prompts now use Neru’s own sheets, and the welcome screens are calmer without the glow."
+      }
+    ]
+  },
+  {
     "version": "0.10.0",
     "date": "2026-10-05",
     "title": "Team in your pocket",

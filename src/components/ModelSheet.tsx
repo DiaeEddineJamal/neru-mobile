@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -36,7 +36,7 @@ export function ModelSheet() {
 
   const close = () => (setModelSheet(false), setQuery(''));
   const pick = (providerId: string, model: string) => {
-    Haptics.selectionAsync();
+    haptic.select();
     chooseModel(providerId, model);
     close();
   };

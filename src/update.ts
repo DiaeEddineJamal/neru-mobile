@@ -1,10 +1,17 @@
 // New versions ship as GitHub releases of this repo, each with the Android APK attached. On launch Neru asks
 // GitHub for the latest release and offers it when it is newer than the running build.
 import Constants from 'expo-constants';
+import { useSyncExternalStore } from 'react';
 
 const LATEST = 'https://api.github.com/repos/DiaeEddineJamal/neru-mobile/releases/latest';
 
 export type Update = { version: string; title: string; notes: string; url: string };
+
+// The release currently on offer, shared by the launch check and Settings → Check for updates.
+let offered: Update | null = null;
+const listeners = new Set<() => void>();
+export const offerUpdate = (u: Update | null) => ((offered = u), listeners.forEach(l => l()));
+export const useOfferedUpdate = () => useSyncExternalStore(l => (listeners.add(l), () => listeners.delete(l)), () => offered);
 
 const parts = (v: string) => v.replace(/^v/, '').split(/[.-]/).map(n => parseInt(n, 10) || 0);
 

@@ -133,12 +133,13 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
           <Button label="Add photos or files" onPress={onAttach} disabled={disabled || streaming} style={s.icon}>
             <Icon name="plus" size={18} color={c.muted} />
           </Button>
-          <Button label={listening ? 'Stop dictation' : 'Voice input'} onPress={onVoice} disabled={disabled} style={[s.icon, listening && { backgroundColor: c.mossDeep, borderRadius: 999 }]}>
+          <Button label={listening ? 'Stop dictation' : 'Voice input'} feedback="medium" onPress={onVoice} disabled={disabled} style={[s.icon, listening && { backgroundColor: c.mossDeep, borderRadius: 999 }]}>
             <Icon name="mic" size={18} color={listening ? c.moss : c.muted} />
           </Button>
           {streaming && canSubmit ? <Button label="Stop generating" onPress={onStop} style={s.icon}><Icon name="stop" size={12} color={c.muted} /></Button> : null}
           <Button
             label={showStop ? 'Stop generating' : streaming ? 'Send follow-up' : 'Send prompt'}
+            feedback={showStop ? 'light' : 'medium'}
             onPress={showStop ? onStop : submit}
             disabled={showStop ? !!disabled : !canSubmit}
             style={[s.icon, { marginLeft: 'auto', backgroundColor: c.mossAction }]}

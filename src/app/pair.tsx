@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -30,7 +30,7 @@ export default function Pair() {
     setError(undefined);
     try {
       await pair(value);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      haptic.success();
       setScanning(false);
       toast.show({ title: 'Desktop connected', description: 'Choose Code or Team in the Desktop tab.' });
       router.back();

@@ -2,10 +2,10 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
 
 import type { Attachment } from '@/store';
 import { uid } from '@/store';
+import { notice } from '@/ui/confirm';
 
 // Images go to vision models as base64; keep them modest so a request stays small.
 const IMAGE = { quality: 0.7, base64: true } as const;
@@ -23,7 +23,7 @@ const fromImage = (a: ImagePicker.ImagePickerAsset): Attachment => ({
 
 export async function takePhoto(): Promise<Attachment[]> {
   const perm = await ImagePicker.requestCameraPermissionsAsync();
-  if (!perm.granted) return (Alert.alert('Camera access', 'Allow Neru to use the camera in your phone settings to take a photo.'), []);
+  if (!perm.granted) return (void notice({ title: 'Allow the camera', message: 'Neru needs the camera to take a photo for your message. You can allow it in your phone’s settings.', icon: 'camera', settings: true }), []);
   const r = await ImagePicker.launchCameraAsync(IMAGE);
   return r.canceled ? [] : r.assets.map(fromImage);
 }

@@ -1,5 +1,5 @@
 // Port of beui.dev/components/agents/message-bubble ("soft" variant, align end) inside beUI's Message row (from="user").
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -42,7 +42,7 @@ export function MessageBubble({ text, onLongPress, animateIn = true }: Props) {
         onLongPress={
           onLongPress &&
           (() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            haptic.light();
             onLongPress();
           })
         }

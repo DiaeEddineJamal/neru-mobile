@@ -1,6 +1,6 @@
 // Port of beui.dev/components/motion/button (base Button, icon size) plus the icon swap beUI's prompt-input uses for send/stop.
 // Hover scale and the optional ripple are not ported (no hover on touch). Labelled buttons live in button-base.tsx.
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
 import type { ReactNode } from 'react';
 import { Pressable, type StyleProp, type ViewStyle, View } from 'react-native';
 import Animated, { type EntryExitAnimationFunction, LayoutAnimationConfig, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -18,18 +18,20 @@ type ButtonProps = {
   /** Pads the visual size up to the 48dp touch target. */
   hitSlop?: number;
   style?: StyleProp<ViewStyle>;
+  /** Haptic on press: a light tap by default, a firmer one for commitments like sending. */
+  feedback?: 'light' | 'medium' | 'none';
   children: ReactNode;
 };
 
 /** beUI Button: whileTap scale on SPRING_PRESS, disabled at 50% opacity. */
-export function Button({ label, onPress, disabled, pressScale = 0.93, hitSlop = 8, style, children }: ButtonProps) {
+export function Button({ label, onPress, disabled, pressScale = 0.93, hitSlop = 8, style, feedback = 'light', children }: ButtonProps) {
   const reduce = useReducedMotion();
   const scale = useSharedValue(1);
   const pressed = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
   return (
     <AnimatedPressable
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (feedback !== 'none') haptic[feedback]();
         onPress?.();
       }}
       onPressIn={() => !reduce && scale.set(withSpring(pressScale, SPRING_PRESS))}

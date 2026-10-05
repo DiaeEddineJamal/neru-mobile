@@ -1,9 +1,10 @@
 import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/haptics';
+import { askForNotifications } from '@/notify';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
@@ -47,6 +48,12 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   const toast = useToast();
   const chat = useStore(st => (chatId ? st.chats.find(x => x.id === chatId) : undefined));
   const streaming = useStore(st => chatId !== null && st.streamingChat === chatId);
+  // A soft tap when a reply finishes, as Claude's and ChatGPT's apps do.
+  const wasStreaming = useRef(false);
+  useEffect(() => {
+    if (wasStreaming.current && !streaming) haptic.light();
+    wasStreaming.current = streaming;
+  }, [streaming]);
   const notice = useStore(st => (st.notice && st.notice.chatId === chatId ? st.notice.text : null));
   const hasModel = useStore(st => !!st.settings.model);
   const list = useRef<FlatList<Message>>(null);
@@ -64,7 +71,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
 
   const copy = (value: string) => {
     Clipboard.setStringAsync(value);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    haptic.light();
     toast.show({ title: 'Copied' });
   };
 
@@ -82,6 +89,8 @@ export function ChatView({ chatId }: { chatId: string | null }) {
       setEditing(null);
     } else {
       const id = send(chatId, body, pending);
+      // Like Claude's app: ask about notifications once there is a reply worth hearing about.
+      void askForNotifications();
       if (!chatId) router.navigate(`/chat/${id}`);
     }
     setText('');

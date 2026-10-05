@@ -11,6 +11,7 @@ import com.google.mediapipe.tasks.components.containers.NormalizedKeypoint
 import com.google.mediapipe.tasks.vision.interactivesegmenter.InteractiveSegmenter
 import com.google.mediapipe.tasks.vision.interactivesegmenter.InteractiveSegmenterOptions
 import com.google.mediapipe.tasks.vision.interactivesegmenter.Stroke
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
@@ -21,6 +22,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /** All inference stays on this phone. One engine, bounded context, serialized lifecycle. */
+@OptIn(ExperimentalApi::class)
 class NeruLocalAiModule : Module() {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val lock = Mutex()
@@ -123,7 +125,9 @@ class NeruLocalAiModule : Module() {
             val system = settings["systemPrompt"] as? String ?: "You are Neru, a helpful assistant."
             val config = ConversationConfig(systemInstruction = Contents.of(system), initialMessages = initial,
               samplerConfig = SamplerConfig(topK = (settings["topK"] as? Number)?.toInt() ?: 64, topP = (settings["topP"] as? Number)?.toDouble() ?: 0.95, temperature = (settings["temperature"] as? Number)?.toDouble() ?: 1.0),
-              maxOutputToken = maxTokens, thinkingConfig = ThinkingConfig(enableThinking = settings["thinking"] == true), enableSpeculativeDecoding = settings["speculative"] == true)
+              maxOutputToken = maxTokens, thinkingConfig = ThinkingConfig(enableThinking = settings["thinking"] == true))
+            // LiteRT-LM 0.17 takes speculative decoding as a process-wide experimental flag, not per conversation.
+            ExperimentalFlags.enableSpeculativeDecoding = settings["speculative"] == true
             engine!!.createConversation(config).use { chat ->
               conversation = chat
               if (!cancelled.get()) {
@@ -142,7 +146,7 @@ class NeruLocalAiModule : Module() {
       cancelled.set(true)
       conversation?.cancelProcess()
     }
-    AsyncFunction("unload") Coroutine {
+    AsyncFunction("unload") Coroutine { ->
       lock.withLock { withContext(Dispatchers.IO) { engine?.close(); engine = null; loadedPath = "" } }
     }
     OnDestroy {

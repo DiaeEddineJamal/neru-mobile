@@ -1,0 +1,19 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'dev.neru.localai'
+version = '1.0.0'
+android {
+  namespace 'dev.neru.localai'
+  defaultConfig {
+    minSdkVersion 26
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+dependencies {
+  implementation 'com.google.ai.edge.litertlm:litertlm-android:0.17.1'
+  implementation 'com.google.mediapipe:tasks-vision:1.0.0'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+}

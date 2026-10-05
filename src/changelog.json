@@ -1,0 +1,28 @@
+[
+  {
+    "version": "0.9.1",
+    "date": "2026-10-05",
+    "title": "Meet Pocket Lab",
+    "summary": "Make room for models that run on your phone, and stay close to your desktop wherever you connect.",
+    "items": [
+      { "icon": "sparkles", "title": "A lab in your pocket", "text": "Explore the 10 models from Google AI Edge Gallery. Download models, then run them offline on Android with your own prompts and settings." },
+      { "icon": "photo", "title": "A little Magic Touch", "text": "Tap an object in a photo to create a transparent cutout, entirely on your phone." },
+      { "icon": "desktop", "title": "Code or Team", "text": "Choose a desktop Code session or Team conversation. Send follow-ups while work is running, and jump to the latest reply when you’re ready." },
+      { "icon": "link", "title": "Across networks", "text": "Enable internet access in desktop Phone settings to connect from another Wi-Fi network or mobile data. Keep Neru open and your desktop awake." },
+      { "icon": "mic", "title": "A steadier voice glow", "text": "The listening animation stays inside your prompt, with a stable rendering surface as the text grows." }
+    ]
+  },
+  {
+    "version": "0.9.0",
+    "date": "2026-10-05",
+    "title": "Neru, now on your phone",
+    "summary": "Chat with free models wherever you are, and keep an eye on the work Neru is doing on your computer.",
+    "items": [
+      { "icon": "sparkles", "title": "Free models that keep going", "text": "Add a free key from NVIDIA, Google, OpenRouter and others. When a model runs out, Neru moves to the next one." },
+      { "icon": "desktop", "title": "Your desktop, in your pocket", "text": "Scan the code in Neru on your computer to follow sessions, read diffs, approve changes and reply." },
+      { "icon": "mic", "title": "Just say it", "text": "Tap the mic and talk. The glow around the message box listens with you." },
+      { "icon": "photo", "title": "Photos and files", "text": "Attach pictures and documents, and tap any picture to see it full screen." },
+      { "icon": "bell", "title": "Never miss an approval", "text": "Neru tells you when a desktop session is waiting on you." }
+    ]
+  }
+]

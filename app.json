@@ -1,0 +1,89 @@
+{
+  "expo": {
+    "name": "Neru",
+    "slug": "neru",
+    "version": "0.9.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "neru",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.neru.mobile",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "dev.neru.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#151515",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 2
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f5f4ef",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 96,
+          "dark": {
+            "backgroundColor": "#151515"
+          }
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Neru uses the microphone when you dictate a message.",
+          "speechRecognitionPermission": "Neru turns your speech into text when you dictate a message."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Neru uses the camera to scan your desktop pairing code and to take photos you attach.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Neru opens your photos when you attach one to a message.",
+          "cameraPermission": "Neru uses the camera to take photos you attach."
+        }
+      ],
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "color": "#486b51"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "minSdkVersion": 26,
+            "kotlinVersion": "2.3.20"
+          }
+        }
+      ],
+      "expo-sharing",
+      "./plugins/with-local-ai"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

@@ -4,7 +4,7 @@
 // error line that fades in from 4px above. Not ported: the message's blur, the
 // success check and left/right icon slots (not needed here). The field is 48 tall
 // instead of 44 to meet the touch-target size.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
 import Animated, {
   type EntryExitAnimationFunction,
@@ -45,8 +45,16 @@ type Props = Omit<TextInputProps, 'style' | 'value' | 'onChangeText' | 'placehol
   autoFocus?: boolean;
 };
 
-export function TextField({ label, error, editable = true, onFocus, onBlur, ...rest }: Props) {
+export function TextField({ label, error, editable = true, onFocus, onBlur, autoFocus, ...rest }: Props) {
   const c = useColors();
+  const input = useRef<TextInput>(null);
+  // Fields in bottom sheets focus once the sheet has slid in: a keyboard opened while the sheet's window is still
+  // appearing isn't seen by the keyboard handling, and the field ends up under it.
+  useEffect(() => {
+    if (!autoFocus) return;
+    const timer = setTimeout(() => input.current?.focus(), 450);
+    return () => clearTimeout(timer);
+  }, [autoFocus]);
   const reduce = useReducedMotion();
   const [focused, setFocused] = useState(false);
   const shake = useSharedValue(0);
@@ -77,6 +85,7 @@ export function TextField({ label, error, editable = true, onFocus, onBlur, ...r
         <Animated.View style={[s.ring, ringStyle]} />
         <TextInput
           {...rest}
+          ref={input}
           editable={editable}
           accessibilityLabel={label}
           accessibilityHint={error}

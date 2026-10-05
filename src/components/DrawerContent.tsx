@@ -9,7 +9,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Icon } from '@/components/Icon';
 import { refreshAll, useRemote, type RemoteSession } from '@/remote/store';
 import { deleteChat, renameChat, restoreChat, toggleStar, useStore, type Chat } from '@/store';
-import { font, fs, TAP, useColors } from '@/theme';
+import { font, fs, TAP, useBottomPad, useColors } from '@/theme';
 import { BottomSheet } from '@/ui/bottom-sheet';
 import { ActionButton } from '@/ui/button-base';
 import { ContextMenu } from '@/ui/context-menu';
@@ -21,6 +21,7 @@ import { RowsSkeleton } from '@/ui/skeleton';
 import { StatusDot } from '@/ui/status-dot';
 import { SegmentedTabs } from '@/ui/tabs';
 import { useToast } from '@/ui/toast';
+import { TourTarget } from '@/ui/tour';
 
 // Claude's drawer: starred chats on top, then everything else newest first under "Recents".
 function groupChats(chats: Chat[]) {
@@ -47,6 +48,7 @@ const panelIn = (from: 1 | -1) =>
 export function DrawerContent({ close }: { close: () => void }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const bottomPad = useBottomPad();
   const path = usePathname();
   const toast = useToast();
   const chats = useStore(s => s.chats);
@@ -70,9 +72,11 @@ export function DrawerContent({ close }: { close: () => void }) {
   // expo-router applies a navigation a moment later, carrying the drawer's open state from before it, so a close
   // sent alongside it gets undone. Close once the route has actually changed instead.
   const go = (href: string) => (href === path ? close() : router.navigate(href as never));
+  // Only a move between the drawer's own screens closes it. Settings, Pair and the other pages slide up over the
+  // open drawer and leave it open underneath for when you come back, as in Claude, so nothing behind them moves.
   const lastPath = useRef(path);
   useEffect(() => {
-    if (lastPath.current === path) return;
+    if (!/^\/($|chat\/|desktop\/|team\/)/.test(path) || lastPath.current === path) return;
     lastPath.current = path;
     close();
   }, [path, close]);
@@ -199,7 +203,7 @@ export function DrawerContent({ close }: { close: () => void }) {
       </View>
       <View style={{ paddingHorizontal: 12, gap: 12 }}>
         <ActionButton title="New chat" icon="compose" variant="secondary" onPress={() => go('/')} />
-        <SegmentedTabs items={[{ value: 'chats', label: 'Chats', icon: color => <ChatBubble color={color} size={17} /> }, { value: 'desktop', label: 'Desktop', icon: color => <Icon name="laptop" size={17} color={color} /> }]} value={tab} onChange={setTab} />
+        <TourTarget name="drawer-tabs"><SegmentedTabs items={[{ value: 'chats', label: 'Chats', icon: color => <ChatBubble color={color} size={17} /> }, { value: 'desktop', label: 'Desktop', icon: color => <Icon name="laptop" size={17} color={color} /> }]} value={tab} onChange={setTab} /></TourTarget>
       </View>
 
       <Animated.View key={tab} entering={enter(tab === 'desktop' ? 1 : -1)} style={{ flex: 1 }}>
@@ -228,15 +232,16 @@ export function DrawerContent({ close }: { close: () => void }) {
         </View>
       </BottomSheet>
 
-      <Pressable
-        onPress={() => (close(), router.push('/settings'))}
+      <TourTarget name="settings"><Pressable
+        // Opens over the drawer, which stays open underneath.
+        onPress={() => router.push('/settings')}
         accessibilityRole="button"
         android_ripple={{ color: c.surface3 }}
-        style={[s.row, s.footer, { borderTopColor: c.border, paddingBottom: insets.bottom + 8 }]}
+        style={[s.row, s.footer, { borderTopColor: c.border, paddingBottom: bottomPad }]}
       >
         <Icon name="settings" size={20} color={c.secondary} />
         <Text style={{ fontFamily: font.medium, fontSize: fs.base, color: c.text }}>Settings</Text>
-      </Pressable>
+      </Pressable></TourTarget>
     </View>
   );
 }

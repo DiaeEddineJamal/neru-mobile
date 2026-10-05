@@ -154,6 +154,20 @@ class NeruLocalAiModule : Module() {
         } finally { conversation = null }
       }
     }
+    // Pocket Lab downloads: a foreground service with a progress notification, so they carry on in the background.
+    Function("downloadStart") { title: String, text: String ->
+      val context = appContext.reactContext ?: return@Function false
+      runCatching { DownloadService.start(context, title, text) }.isSuccess
+    }
+    Function("downloadProgress") { title: String, text: String, percent: Int ->
+      appContext.reactContext?.let { DownloadService.update(it, title, text, percent) }
+    }
+    Function("downloadFinish") { title: String?, text: String? ->
+      appContext.reactContext?.let { DownloadService.finish(it, title, text) }
+    }
+    // React Native pauses JS timers while the app is in the background; this wait keeps going, so a dropped
+    // connection still retries with Neru out of sight.
+    AsyncFunction("wait") Coroutine { ms: Double -> delay(ms.toLong().coerceIn(0, 60_000)) }
     Function("cancel") {
       cancelled.set(true)
       conversation?.cancelProcess()

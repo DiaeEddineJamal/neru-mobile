@@ -18,6 +18,10 @@ export type Settings = {
   fallback: boolean;
   haptics: boolean;
   theme: 'system' | 'light' | 'dark';
+  /** Accent theme from `palettes` in theme.ts, applied in light and dark alike. */
+  palette?: string;
+  /** First-run walkthrough: 'pending' starts it on the home screen. */
+  tour?: 'pending' | 'done';
   voiceLang: string;
   onboarded: boolean;
   /** Last version whose What's New was shown. */

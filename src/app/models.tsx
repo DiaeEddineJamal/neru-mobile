@@ -3,13 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView, type KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 
-import { Icon } from '@/components/Icon';
+import { Icon, IconButton } from '@/components/Icon';
 import { localModels, sizeLabel, type LocalModel } from '@/local/catalog';
 import { configForLocal, saveLocalConfig } from '@/local/config';
 import { account, openHub, openLicense, saveToken, signIn, signInAvailable, signOut } from '@/local/huggingface';
-import { deviceMemoryGB, downloadModel, fitsMemory, GatedError, pauseDownload, refreshDownloads, removeModel, useDownloads } from '@/local/models';
+import { cancelDownload, deviceMemoryGB, downloadModel, fitsMemory, GatedError, pauseDownload, refreshDownloads, removeModel, useDownloads } from '@/local/models';
 import { localAvailable, unloadLocal } from '@/local/runtime';
-import { chooseModel, updateSettings, useStore } from '@/store';
+import { chooseModel, getState, updateSettings, useStore } from '@/store';
+import { appVersion } from '@/components/WhatsNew';
+import { askForNotifications } from '@/notify';
 import { font, fs, useColors } from '@/theme';
 import { AnimatedBadge } from '@/ui/animated-badge';
 import { ActionButton } from '@/ui/button-base';
@@ -38,6 +40,8 @@ export default function Models() {
   // Gated models, as in Edge Gallery: sign in with Hugging Face when asked, accept the license when asked,
   // and pick the download back up after each step without another tap.
   const get = async (m: LocalModel) => {
+    // Asked right as it pays off: the download's progress lives in the notification shade while you're away.
+    await askForNotifications().catch(() => false);
     for (let step = 0; ; step++) {
       try { return await downloadModel(m); }
       catch (e) {
@@ -55,13 +59,17 @@ export default function Models() {
     }
   };
   // Straight into a new chat with the model, from wherever Pocket Lab was opened (Settings or the model sheet).
-  const choose = (id: string) => { chooseModel('on-device', id); updateSettings({ onboarded: true }); toast.show({ title: 'On-device model selected', description: 'Your messages stay on this phone.' }); router.dismissAll(); router.navigate('/'); };
+  const choose = (id: string) => { chooseModel('on-device', id); if (!getState().settings.onboarded) updateSettings({ onboarded: true, seenVersion: appVersion, tour: 'pending' }); toast.show({ title: 'On-device model selected', description: 'Your messages stay on this phone.' }); router.dismissAll(); router.navigate('/'); };
   const addToken = async () => {
     setSavingToken(true);
     setTokenError('');
     try { setHfUser(await saveToken(token)); setToken(''); toast.show({ title: 'Hugging Face token saved', description: 'Gated models download with your account now.' }); }
     catch (e) { setTokenError(e instanceof Error ? e.message : String(e)); }
     finally { setSavingToken(false); }
+  };
+  const cancel = async (m: LocalModel) => {
+    const ok = await confirm({ title: `Stop downloading ${m.name}?`, message: 'The part downloaded so far is deleted. You can start again any time.', action: 'Stop and delete', destructive: true });
+    if (ok) await run(cancelDownload(m.id).then(() => toast.show({ title: 'Download canceled', description: m.name })));
   };
   const remove = async (m: LocalModel) => {
     const ok = await confirm({ title: `Remove ${m.name}?`, message: `This frees ${sizeLabel(m.bytes)} on your phone. Your conversations stay, and you can download the model again any time.`, action: 'Remove download', destructive: true });
@@ -73,7 +81,7 @@ export default function Models() {
       <View style={{ gap: 8 }}>
         <Icon name="sparkles" size={28} color={c.sage} />
         <Text style={[s.title, { color: c.text }]}>Big ideas. Pocket-sized.</Text>
-        <Text style={[s.body, { color: c.secondary }]}>Welcome to Pocket Lab. Download once, then run models offline: every model in Google AI Edge Gallery, plus open models for coding and everyday chat that need no account.</Text>
+        <Text style={[s.body, { color: c.secondary }]}>Welcome to Pocket Lab. Download once (it keeps going if you leave the app), then run models offline: every model in Google AI Edge Gallery, plus open models for coding and everyday chat that need no account.</Text>
         <Text style={[s.caption, { color: c.muted }]}>{deviceMemoryGB ? `${deviceMemoryGB.toFixed(1)} GB device memory · ` : ''}Text, documents and photos with Gemma 4 and Gemma 3n · No API key for chat</Text>
         {!localAvailable ? <Text style={[s.body, { color: c.danger }]}>Available in the Neru Android build with LiteRT-LM. On-device inference is unavailable in Expo Go, the web app and iOS.</Text> : null}
       </View>
@@ -92,7 +100,7 @@ export default function Models() {
             <Text style={[s.body, { color: c.secondary }]}>{m.description}</Text>
             {m.gated && !ready ? <Text style={[s.caption, { color: c.muted }]}>{hfUser ? 'License on Hugging Face · accept it once when asked' : 'Needs a Hugging Face account · add your token below'}</Text> : null}
             {!compatible ? <Text style={[s.caption, { color: c.danger }]}>This model exceeds Google’s memory recommendation for this phone.</Text> : null}
-            {busy || phase === 'paused' ? <View style={{ gap: 8 }}><View style={[s.track, { backgroundColor: c.surface3 }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round((d?.progress ?? 0) * 100) }}><View style={{ width: `${(d?.progress ?? 0) * 100}%`, height: 4, backgroundColor: c.moss }} /></View><Text style={[s.caption, { color: c.muted }]}>{phase === 'verifying' ? 'Checking the download…' : d?.note && phase === 'downloading' ? `${d.note} · ${Math.round((d?.progress ?? 0) * 100)}%` : `${phase === 'paused' ? 'Paused · ' : ''}${Math.round((d?.progress ?? 0) * 100)}%`}</Text></View> : null}
+            {busy || phase === 'paused' ? <View style={s.progress}><View style={{ flex: 1, gap: 8 }}><View style={[s.track, { backgroundColor: c.surface3 }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round((d?.progress ?? 0) * 100) }}><View style={{ width: `${(d?.progress ?? 0) * 100}%`, height: 4, backgroundColor: c.moss }} /></View><Text style={[s.caption, { color: c.muted }]}>{phase === 'verifying' ? 'Checking the download…' : d?.note && phase === 'downloading' ? `${d.note} · ${Math.round((d?.progress ?? 0) * 100)}%` : `${phase === 'paused' ? 'Paused · ' : ''}${Math.round((d?.progress ?? 0) * 100)}%`}</Text></View>{phase !== 'verifying' ? <IconButton name="close" size={18} label={`Cancel the ${m.name} download`} color={c.secondary} onPress={() => void cancel(m)} style={{ marginRight: -12 }} /> : null}</View> : null}
             {d?.error ? <Text style={[s.caption, { color: c.danger }]}>{d.error}</Text> : null}
             {ready ? <View style={{ gap: 4 }}><ActionButton title={m.kind === 'segmenter' ? 'Try Magic Touch' : current ? 'Start chatting' : 'Use this model'} disabled={streaming} onPress={() => m.kind === 'segmenter' ? router.push('/magic-touch') : choose(m.id)} /><ActionButton title="Remove download" variant="ghost" disabled={streaming} onPress={() => void remove(m)} /></View>
               : phase === 'downloading' ? <ActionButton title="Pause download" variant="secondary" onPress={() => run(pauseDownload(m.id))} />
@@ -144,4 +152,4 @@ function ModelConfig({ model: m, onClose }: { model: LocalModel; onClose: () => 
     <ActionButton title="Save configuration" onPress={save} /><ActionButton title="Reset to defaults" variant="ghost" onPress={reset} />
   </View></BottomSheet>;
 }
-const s = StyleSheet.create({ page: { padding: 20, paddingBottom: 48, gap: 20 }, title: { fontFamily: font.serif, fontSize: 34, lineHeight: 40 }, body: { fontFamily: font.sans, fontSize: fs.sm, lineHeight: 21 }, caption: { fontFamily: font.sans, fontSize: fs.xs, lineHeight: 18 }, card: { padding: 16, borderRadius: 18, borderWidth: 1, gap: 10 }, row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, name: { fontFamily: font.semibold, fontSize: fs.base }, track: { height: 4, borderRadius: 2, overflow: 'hidden' } });
+const s = StyleSheet.create({ page: { padding: 20, paddingBottom: 48, gap: 20 }, title: { fontFamily: font.serif, fontSize: 34, lineHeight: 40 }, body: { fontFamily: font.sans, fontSize: fs.sm, lineHeight: 21 }, caption: { fontFamily: font.sans, fontSize: fs.xs, lineHeight: 18 }, card: { padding: 16, borderRadius: 18, borderWidth: 1, gap: 10 }, row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, name: { fontFamily: font.semibold, fontSize: fs.base }, track: { height: 4, borderRadius: 2, overflow: 'hidden' }, progress: { flexDirection: 'row', alignItems: 'center', gap: 4 } });

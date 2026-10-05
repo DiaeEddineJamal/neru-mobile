@@ -4,14 +4,23 @@ import * as FS from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { useSyncExternalStore } from 'react';
 
-import { localModel, localModels, modelUrl, type LocalModel } from '@/local/catalog';
+import { localModel, localModels, modelUrl, sizeLabel, type LocalModel } from '@/local/catalog';
 
 export type Download = { phase: 'available' | 'downloading' | 'paused' | 'verifying' | 'ready' | 'error'; progress: number; error?: string; note?: string };
 
 // A dropped connection or a busy server is retried on its own, for as long as the download is not paused,
 // and every retry resumes from the bytes already saved. Waits grow to 30 s and reset once bytes flow again.
 const RETRY_SECONDS = [2, 4, 8, 15, 30];
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+type Native = {
+  verifyFile(uri: string, hash: string): Promise<boolean>;
+  downloadStart(title: string, text: string): boolean;
+  downloadProgress(title: string, text: string, percent: number): void;
+  downloadFinish(title: string | null, text: string | null): void;
+  wait(ms: number): Promise<void>;
+};
+const native = requireOptionalNativeModule<Native>('NeruLocalAi');
+// JS timers stop while Neru is in the background; the native wait keeps retries going there.
+const sleep = (ms: number) => (native?.wait ? native.wait(ms) : new Promise<void>(r => setTimeout(r, ms)));
 class Transient extends Error {}
 /** A gated model: 401 means sign in to Hugging Face, 403 means accept the model's license there. */
 export class GatedError extends Error {
@@ -30,7 +39,20 @@ const partialOf = (m: LocalModel) => `${uriOf(m)}.partial`;
 // The partial file is the resume point: Android's resumable download continues from a byte offset, and the
 // module only reports one after a pause, so after a dropped connection (or the app closing) read it from disk.
 const savedBytes = async (m: LocalModel) => { const info = await FS.getInfoAsync(partialOf(m)); return info.exists ? info.size : 0; };
-const change = (id: string, d: Download) => { states = { ...states, [id]: d }; listeners.forEach(fn => fn()); };
+/** Mirrors a running download into its notification, once per percent so the shade isn't flooded. */
+let shown = '';
+const shade = (id: string, d: Download) => {
+  const m = localModel(id);
+  if (!native?.downloadProgress || !m || !active.has(id)) return;
+  const percent = Math.floor(d.progress * 100);
+  const [title, text, bar] = d.phase === 'verifying' ? [`Checking ${m.name}`, 'Making sure every byte arrived intact', -1]
+    : d.phase === 'downloading' ? [`Downloading ${m.name}`, d.note ?? `${percent}% · ${sizeLabel(d.progress * m.bytes)} of ${sizeLabel(m.bytes)}`, percent]
+    : [];
+  if (title === undefined || `${title}${text}` === shown) return;
+  shown = `${title}${text}`;
+  native.downloadProgress(title, text as string, bar as number);
+};
+const change = (id: string, d: Download) => { states = { ...states, [id]: d }; shade(id, d); listeners.forEach(fn => fn()); };
 export function useDownloads() {
   return useSyncExternalStore(l => { listeners.add(l); return () => { listeners.delete(l); }; }, () => states);
 }
@@ -55,9 +77,11 @@ export const fitsMemory = (m: LocalModel) => deviceMemoryGB === null || Math.rou
 export async function downloadModel(m: LocalModel) {
   if (active.size) throw new Error('Finish or pause the current download first.');
   if (!fitsMemory(m)) throw new Error(`Google recommends at least ${m.memory} GB RAM for this model. Choose a smaller model.`);
-  const verify = requireOptionalNativeModule<{ verifyFile(uri: string, hash: string): Promise<boolean> }>('NeruLocalAi');
+  const verify = native;
   if (!verify) throw new Error('Install the Neru Android build with on-device model support first.');
   active.add(m.id);
+  shown = '';
+  native?.downloadStart?.(`Downloading ${m.name}`, 'Starting…');
   change(m.id, { phase: 'downloading', progress: 0 });
   try {
     await FS.makeDirectoryAsync(directory(), { intermediates: true });
@@ -125,16 +149,33 @@ export async function downloadModel(m: LocalModel) {
   } catch (err) {
     if (states[m.id]?.phase !== 'paused') change(m.id, { phase: 'error', progress: states[m.id]?.progress ?? 0, error: err instanceof Error ? err.message : String(err) });
     throw err;
-  } finally { tasks.delete(m.id); active.delete(m.id); }
+  } finally {
+    tasks.delete(m.id);
+    active.delete(m.id);
+    // A pause or cancel the user asked for leaves nothing behind; the outcome of a finished run stays in the shade.
+    const end = states[m.id];
+    native?.downloadFinish?.(
+      end?.phase === 'ready' ? `${m.name} is ready` : end?.phase === 'error' ? `${m.name} didn’t finish downloading` : null,
+      end?.phase === 'ready' ? 'Tap to start chatting offline.' : end?.phase === 'error' ? end.error ?? null : null,
+    );
+  }
 }
 export async function pauseDownload(id: string) {
-  const task = tasks.get(id);
   const m = localModel(id);
-  if (!task || !m) return;
+  if (!m || !active.has(id)) return;
   // Marked first so the download loop stops instead of treating the pause as a dropped connection.
   change(id, { phase: 'paused', progress: states[id]?.progress ?? 0 });
-  await task.pauseAsync().catch(() => {});
+  await tasks.get(id)?.pauseAsync().catch(() => {});
   change(id, { phase: 'paused', progress: (await savedBytes(m)) / m.bytes });
+}
+/** Stops a running or paused download and throws away the bytes saved so far. */
+export async function cancelDownload(id: string) {
+  const m = localModel(id);
+  if (!m) return;
+  await pauseDownload(id);
+  while (active.has(id)) await sleep(100);
+  await FS.deleteAsync(partialOf(m), { idempotent: true });
+  change(id, { phase: 'available', progress: 0 });
 }
 export async function removeModel(id: string) {
   if (active.has(id)) throw new Error('Pause the download before removing it.');

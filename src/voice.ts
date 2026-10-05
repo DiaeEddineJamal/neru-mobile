@@ -2,6 +2,7 @@
 // and the volume drives the voice stripes.
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useRef, useState } from 'react';
+import { useSharedValue } from 'react-native-reanimated';
 
 import { getState } from '@/store';
 import { notice } from '@/ui/confirm';
@@ -11,7 +12,10 @@ export type VoiceState = 'idle' | 'listening' | 'processing';
 /** `onText(base, spoken)`: the composer text from before dictation and everything said since. */
 export function useVoice(onText: (text: string) => void, currentText: string) {
   const [state, setState] = useState<VoiceState>('idle');
-  const [level, setLevel] = useState(0);
+  // A shared value, not state: ten readings a second would otherwise re-render the whole composer, and while a
+  // reply streams those renders queue up behind it and the stripes stutter.
+  const level = useSharedValue(0);
+  const setLevel = (value: number) => level.set(value);
   const base = useRef('');
   const finals = useRef('');
   const interim = useRef('');

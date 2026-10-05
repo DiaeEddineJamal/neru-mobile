@@ -8,7 +8,7 @@ import { haptic } from '@/haptics';
 import { useRemote } from '@/remote/store';
 import { deleteAllChats, modelLabel, setModelSheet, updateSettings, useStore, type Settings as S } from '@/store';
 import { useToast } from '@/ui/toast';
-import { font, fs, TAP, useColors } from '@/theme';
+import { font, fs, paletteColors, palettes, TAP, useBottomPad, useColors } from '@/theme';
 import { confirm } from '@/ui/confirm';
 import { SelectSheet } from '@/ui/select';
 import { BottomSheet } from '@/ui/bottom-sheet';
@@ -39,10 +39,11 @@ const languages = [
 
 export default function Settings() {
   const c = useColors();
+  const bottomPad = useBottomPad();
   const settings = useStore(s => s.settings);
   const keyed = useStore(s => s.keyed.length);
   const desktop = useRemote(s => s.desktopName);
-  const [sheet, setSheet] = useState<'theme' | 'voice' | 'gender' | 'name' | null>(null);
+  const [sheet, setSheet] = useState<'theme' | 'palette' | 'voice' | 'gender' | 'name' | null>(null);
   const [name, setName] = useState(settings.name ?? '');
   const saveName = () => { updateSettings({ name: name.trim() || undefined }); setSheet(null); };
   const toast = useToast();
@@ -95,7 +96,7 @@ export default function Settings() {
   );
 
   return (
-    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
+    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 16, paddingBottom: bottomPad + 36 }}>
       {group('You', [
         row('Name', settings.name || 'Not set', () => (setName(settings.name ?? ''), setSheet('name'))),
         row('Gender', genders.find(g => g.value === settings.gender)?.label ?? 'Not set', () => setSheet('gender')),
@@ -115,6 +116,7 @@ export default function Settings() {
       {group('Desktop', [row('Paired desktop', desktop ?? 'Not paired', () => router.push('/pair'))])}
       {group('App', [
         row('Appearance', themes.find(t => t.value === settings.theme)?.label, () => setSheet('theme')),
+        row('Theme', (palettes.find(p => p.id === settings.palette) ?? palettes[0]).name, () => setSheet('palette')),
         row('Dictation language', languages.find(l => l.value === settings.voiceLang)?.label ?? settings.voiceLang, () => setSheet('voice')),
         row('Notifications', notifications === null ? undefined : notifications ? 'On' : 'Off', () => void toggleNotifications()),
         <View key="nudges" style={s.row}>
@@ -145,6 +147,7 @@ export default function Settings() {
         </Pressable>,
       ])}
       {group('About', [
+        row('Take the tour', 'A guided look at every control', () => { updateSettings({ tour: 'pending' }); router.dismissAll(); router.navigate('/'); }),
         row("What's new", undefined, () => router.push('/changelog')),
         row('Image animation: Grid Reveal by Rare UI', 'rareui.com', () => void Linking.openURL('https://www.rareui.com/components/gridreveal')),
       ])}
@@ -157,12 +160,52 @@ export default function Settings() {
         </View>
       </BottomSheet>
       <SelectSheet open={sheet === 'theme'} onClose={() => setSheet(null)} title="Appearance" options={themes} value={settings.theme} onChange={v => (updateSettings({ theme: v as S['theme'] }), setSheet(null))} />
+      <BottomSheet open={sheet === 'palette'} onClose={() => setSheet(null)} title="Theme">
+        <View style={s.swatches} accessibilityRole="radiogroup">
+          {palettes.map(p => <Swatch key={p.id} id={p.id} name={p.name} note={p.note} selected={(settings.palette ?? 'moss') === p.id} onPress={() => (haptic.select(), updateSettings({ palette: p.id }))} />)}
+        </View>
+      </BottomSheet>
       <SelectSheet open={sheet === 'voice'} onClose={() => setSheet(null)} title="Dictation language" options={languages} value={settings.voiceLang} onChange={v => (updateSettings({ voiceLang: v }), setSheet(null))} />
     </ScrollView>
   );
 }
 
+/** A theme card: its light and dark faces side by side, so both modes are judged at once. */
+function Swatch({ id, name, note, selected, onPress }: { id: string; name: string; note: string; selected: boolean; onPress: () => void }) {
+  const c = useColors();
+  const face = (scheme: 'light' | 'dark') => {
+    const t = paletteColors(id, scheme);
+    return (
+      <View style={[s.face, { backgroundColor: t.bg }]}>
+        <View style={[s.faceBubble, { backgroundColor: t.bubble }]} />
+        <View style={[s.faceLine, { backgroundColor: t.border }]} />
+        <View style={[s.faceDot, { backgroundColor: t.mossAction }]} />
+      </View>
+    );
+  };
+  return (
+    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={`${name}, ${note}`} style={[s.swatch, { borderColor: selected ? c.moss : c.border, backgroundColor: c.surface2 }]}>
+      <View style={s.faces}>{face('light')}{face('dark')}</View>
+      <View style={s.swatchText}>
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontFamily: font.semibold, fontSize: fs.sm, color: c.text }}>{name}</Text>
+          <Text numberOfLines={2} style={{ fontFamily: font.sans, fontSize: fs.xs, lineHeight: 16, color: c.muted }}>{note}</Text>
+        </View>
+        {selected ? <Icon name="check" size={16} color={c.moss} /> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 const s = StyleSheet.create({
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingTop: 8, paddingBottom: 8 },
+  swatch: { width: '48%', flexGrow: 1, borderRadius: 16, borderWidth: 1.5, overflow: 'hidden' },
+  faces: { flexDirection: 'row', height: 64 },
+  face: { flex: 1, padding: 8, gap: 6, justifyContent: 'flex-end' },
+  faceBubble: { alignSelf: 'flex-end', width: '70%', height: 12, borderRadius: 6 },
+  faceLine: { width: '85%', height: 5, borderRadius: 3 },
+  faceDot: { alignSelf: 'flex-end', width: 14, height: 14, borderRadius: 7 },
+  swatchText: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8 },
   heading: { fontFamily: font.medium, fontSize: fs.xs, paddingHorizontal: 4, paddingBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 },
   group: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: TAP + 8, paddingHorizontal: 16, paddingVertical: 6 },

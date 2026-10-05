@@ -2,6 +2,8 @@
 // each new bar as tall as your voice when it entered on the right. Everything runs on the UI thread from one
 // frame clock: the recognizer's ~10 volume readings a second only set a target the strip eases toward, so the
 // bars never step, stutter or restart, whatever happens on the JS thread (typing, deleting, streaming).
+// Bars change size with scaleY, never height: a layout change has to go through a React commit, and those
+// queue behind a streaming reply or a loading model, which made the stripes judder.
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useFrameCallback, useReducedMotion, useSharedValue, type SharedValue } from 'react-native-reanimated';
@@ -15,32 +17,32 @@ const MAX = 24;
 function Bar({ samples, offset, index, color }: { samples: SharedValue<number[]>; offset: SharedValue<number>; index: number; color: string }) {
   // Anchored to the right edge: the newest bar slides in from just outside it.
   const style = useAnimatedStyle(() => ({
-    height: MIN + (MAX - MIN) * (samples.get()[index] ?? 0),
-    transform: [{ translateX: SPACING - offset.get() - (BARS - 1 - index) * SPACING }],
+    transform: [{ translateX: SPACING - offset.get() - (BARS - 1 - index) * SPACING }, { scaleY: (MIN + (MAX - MIN) * (samples.get()[index] ?? 0)) / MAX }],
   }));
   return <Animated.View style={[s.bar, { backgroundColor: color }, style]} />;
 }
 
 // Reduce motion: a few bars rise and fall in place with the voice instead of scrolling.
 function StillBar({ level, scale, color }: { level: SharedValue<number>; scale: number; color: string }) {
-  const style = useAnimatedStyle(() => ({ height: MIN + (MAX - MIN) * level.get() * scale }));
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleY: (MIN + (MAX - MIN) * level.get() * scale) / MAX }] }));
   return <Animated.View style={[s.still, { backgroundColor: color }, style]} />;
 }
 
 /** `level` 0..1 from the speech recognizer; `active` false lets the strip settle while the last words arrive. */
-export function VoiceWaveform({ level, active, color }: { level: number; active: boolean; color: string }) {
+export function VoiceWaveform({ level, active, color }: { level: SharedValue<number>; active: boolean; color: string }) {
   const reduce = useReducedMotion();
-  const target = useSharedValue(0);
+  const on = useSharedValue(active);
+  useEffect(() => { on.set(active); }, [active, on]);
   const smooth = useSharedValue(0);
   const offset = useSharedValue(0);
   const samples = useSharedValue<number[]>(Array(BARS).fill(0));
-  useEffect(() => { target.set(active ? level : 0); }, [level, active, target]);
 
   useFrameCallback(({ timeSincePreviousFrame }) => {
     'worklet';
     const dt = Math.min(64, timeSincePreviousFrame ?? 16);
     // Ease toward the latest reading (~90 ms) so the steps between readings become a curve.
-    smooth.set(smooth.get() + (target.get() - smooth.get()) * (1 - Math.exp(-dt / 90)));
+    const target = on.get() ? level.get() : 0;
+    smooth.set(smooth.get() + (target - smooth.get()) * (1 - Math.exp(-dt / 90)));
     if (reduce) return;
     let next = offset.get() + dt * SPEED;
     if (next >= SPACING) {
@@ -64,6 +66,6 @@ export function VoiceWaveform({ level, active, color }: { level: number; active:
 const s = StyleSheet.create({
   row: { flex: 1, height: MAX, overflow: 'hidden', justifyContent: 'center' },
   centered: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
-  bar: { position: 'absolute', right: 0, width: 3, borderRadius: 1.5 },
-  still: { width: 3, borderRadius: 1.5 },
+  bar: { position: 'absolute', right: 0, width: 3, height: MAX, borderRadius: 1.5 },
+  still: { width: 3, height: MAX, borderRadius: 1.5 },
 });

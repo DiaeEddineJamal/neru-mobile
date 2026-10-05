@@ -1,5 +1,15 @@
 # Neru mobile changelog
 
+## 0.13.0 · 2026-10-05
+
+**Your colors.** Seven themes that suit moss green, a walkthrough of every control, and Pocket Lab downloads that keep going when you leave the app.
+
+- **Themes.** Pick Glacier, Heather, Terracotta, Saffron, Tidepool or Twilight in Settings → Theme, or stay with Moss. Each one is made for light and dark alike.
+- **A guided tour.** New to Neru? A short walkthrough spotlights each control, from picking a model to pairing your desktop. Replay it any time from Settings.
+- **Downloads that carry on.** Pocket Lab keeps downloading while you use other screens or leave the app, with the model and its progress in your notifications. Tap the ✕ to cancel a download.
+- **Watch Codex draw.** In Team, the image animation now starts as soon as Codex begins drawing, not when the picture is already done.
+- **Smoother everywhere.** The message box sits clear of the gesture bar like in Claude, name and rename fields stay above the keyboard, Settings opens without the home screen flashing, and voice stripes stay fluid while a model answers.
+
 ## 0.12.0 · 2026-10-05
 
 **Made for you.** Neru learns your name, Codex draws for you in Team, and Pocket Lab gets open models for coding and everyday chat.

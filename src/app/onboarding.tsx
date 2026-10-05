@@ -106,7 +106,7 @@ export default function Onboarding() {
     setStep(next);
   };
   const finish = (then?: '/pair') => {
-    updateSettings({ onboarded: true, seenVersion: appVersion });
+    updateSettings({ onboarded: true, seenVersion: appVersion, tour: 'pending' });
     router.replace('/');
     if (then) router.push(then);
   };

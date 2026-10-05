@@ -12,7 +12,7 @@
 ![React Native](https://img.shields.io/badge/React%20Native-0.8x-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%C2%B7%20iOS-64806a)
-![Version](https://img.shields.io/badge/version-0.12.0-54745b)
+![Version](https://img.shields.io/badge/version-0.13.0-54745b)
 
 <img src="assets/images/whats-new-parchment.png" width="640" alt="Neru in a landscape of layered paper hills on warm parchment" />
 

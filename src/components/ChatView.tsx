@@ -237,6 +237,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
         attachments={pending}
         onRemoveAttachment={id => setPending(p => p.filter(a => a.id !== id))}
         onOpenImage={id => openImage(pending, id)}
+        tour={chatId === null}
       />
 
       <BottomSheet open={attachOpen} onClose={() => setAttachOpen(false)} title="Add to chat">

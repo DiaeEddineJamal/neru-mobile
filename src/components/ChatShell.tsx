@@ -3,9 +3,8 @@
 import type { ReactNode } from 'react';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useColors } from '@/theme';
+import { useBottomPad, useColors } from '@/theme';
 import { PromptInput, type PromptAttachment } from '@/ui/prompt-input';
 import { useVoice } from '@/voice';
 type ComposerProps = {
@@ -21,6 +20,7 @@ type ComposerProps = {
   attachments?: PromptAttachment[];
   onRemoveAttachment?: (id: string) => void;
   onOpenImage?: (id: string) => void;
+  tour?: boolean;
 };
 
 /**
@@ -31,10 +31,10 @@ type ComposerProps = {
  */
 export function ChatScreen({ children }: { children: ReactNode }) {
   const c = useColors();
-  const insets = useSafeAreaInsets();
+  const bottomPad = useBottomPad();
   const { height } = useReanimatedKeyboardAnimation();
   // The composer already pads for the gesture bar; with the keyboard up, that space sits on the keyboard instead.
-  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, -height.get() - Math.max(insets.bottom, 12) + 8) }));
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, -height.get() - bottomPad + 8) }));
   return <Animated.View style={[{ flex: 1, backgroundColor: c.bg }, lift]}>{children}</Animated.View>;
 }
 

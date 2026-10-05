@@ -6,9 +6,9 @@
 // Escape key and body scroll lock (the Modal covers both). The drag handle is the
 // whole header, not only the 6px pill, so it is a usable touch target.
 import { type ReactNode, useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -37,6 +37,13 @@ export function BottomSheet({ open, onClose, title, children, maxHeight }: Props
   const progress = useSharedValue(0);
   const drag = useSharedValue(0);
   const sheetH = useSharedValue(screenH);
+  // The sheet alone handles the keyboard: the Modal fills the screen, so the keyboard's height is exactly how far
+  // the sheet rises, and the sheet gets shorter by as much so a tall one still fits above it. (A keyboard-aware
+  // scroll view inside as well added the keyboard's height a second time and scrolled the field out of sight.)
+  const keyboard = useReanimatedKeyboardAnimation();
+  const cap = maxHeight ?? screenH * 0.85;
+  const dockStyle = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, -keyboard.height.get()) }));
+  const capStyle = useAnimatedStyle(() => ({ maxHeight: Math.min(cap, screenH - insets.top - 16 + keyboard.height.get()) }));
 
   useEffect(() => {
     if (!mounted) return;
@@ -73,12 +80,12 @@ export function BottomSheet({ open, onClose, title, children, maxHeight }: Props
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: `${c.bg}99` }, scrimStyle]}>
           <Pressable style={s.fill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close bottom sheet" />
         </Animated.View>
-        <KeyboardAvoidingView behavior="padding" style={[s.fill, s.dock]}>
+        <Animated.View style={[s.fill, s.dock, dockStyle]}>
           <Animated.View
             accessibilityViewIsModal
             accessibilityLabel={title ?? 'Bottom sheet'}
             onLayout={(e) => sheetH.set(e.nativeEvent.layout.height)}
-            style={[s.panel, { maxHeight: maxHeight ?? screenH * 0.85, backgroundColor: c.bg, borderColor: c.border }, panelStyle]}
+            style={[s.panel, { backgroundColor: c.bg, borderColor: c.border }, capStyle, panelStyle]}
           >
             <GestureDetector gesture={pan}>
               <View style={s.header}>
@@ -92,16 +99,15 @@ export function BottomSheet({ open, onClose, title, children, maxHeight }: Props
                 ) : null}
               </View>
             </GestureDetector>
-            <KeyboardAwareScrollView
-              bottomOffset={24}
+            <ScrollView
               style={s.body}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 + insets.bottom }}
               keyboardShouldPersistTaps="handled"
             >
               {children}
-            </KeyboardAwareScrollView>
+            </ScrollView>
           </Animated.View>
-        </KeyboardAvoidingView>
+        </Animated.View>
       </GestureHandlerRootView>
     </Modal>
   );

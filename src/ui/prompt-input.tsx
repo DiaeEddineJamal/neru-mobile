@@ -13,15 +13,16 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  type SharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
-import { font, fs, useColors } from '@/theme';
+import { font, fs, useBottomPad, useColors } from '@/theme';
 import { Button, SwapIcon } from '@/ui/button';
 import { DocCard } from '@/ui/message-attachments';
 import { EASE_OUT } from '@/ui/motion';
+import { TourTarget } from '@/ui/tour';
 import { VoiceWaveform } from '@/ui/voice-waveform';
 
 export type PromptAttachment = { id: string; name: string; uri?: string; kind: 'image' | 'file'; mime?: string };
@@ -42,12 +43,14 @@ type Props = {
   /** Tapping an image thumbnail in the tray. */
   onOpenImage?: (id: string) => void;
   /** Dictation volume 0..1, drawn as Claude-style stripes while listening. */
-  voiceLevel?: number;
+  voiceLevel?: SharedValue<number>;
   /** Dictation stopped and the last words are still arriving. */
   voiceProcessing?: boolean;
   disabled?: boolean;
   /** Desktop sessions accept follow-ups while running. */
   allowSteer?: boolean;
+  /** This composer's controls are stops on the walkthrough (the home screen's). */
+  tour?: boolean;
 };
 
 const LINE = 22;
@@ -68,9 +71,9 @@ const itemOut: EntryExitAnimationFunction = () => {
   };
 };
 
-export function PromptInput({ value, onChangeText, onSend, onStop, streaming, placeholder = 'Message Neru', onAttach, onVoice, listening = false, attachments = [], onRemoveAttachment, onOpenImage, voiceLevel = 0, voiceProcessing = false, disabled, allowSteer = false }: Props) {
+export function PromptInput({ value, onChangeText, onSend, onStop, streaming, placeholder = 'Message Neru', onAttach, onVoice, listening = false, attachments = [], onRemoveAttachment, onOpenImage, voiceLevel, voiceProcessing = false, disabled, allowSteer = false, tour = false }: Props) {
   const c = useColors();
-  const insets = useSafeAreaInsets();
+  const bottomPad = useBottomPad();
   const reduce = useReducedMotion();
   const focus = useSharedValue(0);
   // border-border/80 → focus-within:border-foreground/25, Tailwind transition-colors (150ms).
@@ -83,7 +86,8 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
   };
 
   return (
-    <View style={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 12), backgroundColor: c.bg }}>
+    <View style={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: bottomPad, backgroundColor: c.bg }}>
+      <TourTarget name={tour ? 'prompt' : undefined}>
       <Animated.View style={[s.box, { backgroundColor: c.prompt }, border, disabled && { opacity: 0.6 }]}>
         {attachments.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.tray}>
@@ -129,13 +133,13 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
         />
 
         <View style={s.row}>
-          <Button label="Add photos or files" onPress={onAttach} disabled={disabled || streaming} style={s.icon}>
+          <TourTarget name={tour ? 'attach' : undefined}><Button label="Add photos or files" onPress={onAttach} disabled={disabled || streaming} style={s.icon}>
             <Icon name="plus" size={18} color={c.muted} />
-          </Button>
-          <Button label={listening ? 'Stop dictation' : 'Voice input'} feedback="medium" onPress={onVoice} disabled={disabled} style={[s.icon, listening && { backgroundColor: c.mossDeep, borderRadius: 999 }]}>
+          </Button></TourTarget>
+          <TourTarget name={tour ? 'mic' : undefined}><Button label={listening ? 'Stop dictation' : 'Voice input'} feedback="medium" onPress={onVoice} disabled={disabled} style={[s.icon, listening && { backgroundColor: c.mossDeep, borderRadius: 999 }]}>
             <Icon name="mic" size={18} color={listening ? c.moss : c.muted} />
-          </Button>
-          {listening ? <VoiceWaveform level={voiceLevel} active={!voiceProcessing} color={c.text} /> : null}
+          </Button></TourTarget>
+          {listening && voiceLevel ? <VoiceWaveform level={voiceLevel} active={!voiceProcessing} color={c.text} /> : null}
           {streaming && canSubmit ? <Button label="Stop generating" onPress={onStop} style={s.icon}><Icon name="stop" size={12} color={c.muted} /></Button> : null}
           <Button
             label={showStop ? 'Stop generating' : streaming ? 'Send follow-up' : 'Send prompt'}
@@ -151,6 +155,7 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
         </View>
 
       </Animated.View>
+      </TourTarget>
     </View>
   );
 }

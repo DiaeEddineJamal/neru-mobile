@@ -1,5 +1,38 @@
 [
   {
+    "version": "0.13.0",
+    "date": "2026-10-05",
+    "title": "Your colors",
+    "summary": "Seven themes that suit moss green, a walkthrough of every control, and Pocket Lab downloads that keep going when you leave the app.",
+    "items": [
+      {
+        "icon": "sparkles",
+        "title": "Themes",
+        "text": "Pick Glacier, Heather, Terracotta, Saffron, Tidepool or Twilight in Settings → Theme, or stay with Moss. Each one is made for light and dark alike."
+      },
+      {
+        "icon": "compass",
+        "title": "A guided tour",
+        "text": "New to Neru? A short walkthrough spotlights each control, from picking a model to pairing your desktop. Replay it any time from Settings."
+      },
+      {
+        "icon": "download",
+        "title": "Downloads that carry on",
+        "text": "Pocket Lab keeps downloading while you use other screens or leave the app, with the model and its progress in your notifications. Tap the ✕ to cancel a download."
+      },
+      {
+        "icon": "team",
+        "title": "Watch Codex draw",
+        "text": "In Team, the image animation now starts as soon as Codex begins drawing, not when the picture is already done."
+      },
+      {
+        "icon": "check",
+        "title": "Smoother everywhere",
+        "text": "The message box sits clear of the gesture bar like in Claude, name and rename fields stay above the keyboard, Settings opens without the home screen flashing, and voice stripes stay fluid while a model answers."
+      }
+    ]
+  },
+  {
     "version": "0.12.0",
     "date": "2026-10-05",
     "title": "Made for you",

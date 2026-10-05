@@ -6,6 +6,7 @@ import { FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions,
 
 import { ChatScreen, VoiceComposer } from '@/components/ChatShell';
 import { IconButton } from '@/components/Icon';
+import { TeamMemberSheet } from '@/components/TeamMemberSheet';
 import { openTeam, sendTeamMessage, stopTeam, useRemote } from '@/remote/store';
 import type { TeamMember, TeamPost } from '@/shared/types';
 import { type Colors, font, fs, useColors } from '@/theme';
@@ -15,6 +16,7 @@ import { AssistantMessage } from '@/ui/message';
 import { MessageBubble } from '@/ui/message-bubble';
 import { ConversationSkeleton } from '@/ui/skeleton';
 import { StatusDot } from '@/ui/status-dot';
+import { DrawingImage, TeamImage } from '@/ui/team-image';
 import { useToast } from '@/ui/toast';
 
 // The desktop's names for each agent CLI (TeamView's AGENT_NAMES, the ones a member can be).
@@ -39,6 +41,7 @@ export default function TeamScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [scrolledUp, setScrolledUp] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const follow = useRef(true);
   const { width } = useWindowDimensions();
 
@@ -97,6 +100,7 @@ export default function TeamScreen() {
         {grouped ? null : authorRow(p.author, p.at)}
         {p.steps.length ? <AgentActivity items={p.steps.map((step, i) => ({ id: `${p.id}-${i}`, label: step, status: 'done' }))} /> : null}
         <AssistantMessage text={p.text} streaming={false} onCopy={() => Clipboard.setStringAsync(p.text)} />
+        {p.images?.map(name => <TeamImage key={name} taskId={id} name={name} />)}
       </View>
     );
   };
@@ -128,16 +132,16 @@ export default function TeamScreen() {
       {members.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.strip, { borderBottomColor: c.border }]} contentContainerStyle={s.stripContent}>
           {members.map(m => (
-            <View key={m.handle} accessible accessibilityLabel={`@${m.handle}, ${m.model || AGENT_NAMES[m.kind] || m.kind}, ${statusLabel(m)}`} style={[s.member, { backgroundColor: c.surface2, borderColor: c.border }]}>
+            <Pressable key={m.handle} onPress={() => setEditing(m.handle)} accessibilityRole="button" accessibilityLabel={`@${m.handle}, ${m.model || AGENT_NAMES[m.kind] || m.kind}${m.effort ? `, ${m.effort} effort` : ''}, ${statusLabel(m)}`} accessibilityHint="Change its model and reasoning effort" android_ripple={{ color: c.surface3 }} style={[s.member, { backgroundColor: c.surface2, borderColor: c.border }]}>
               <AgentLogo kind={m.kind} initial={m.handle} tint={tintOf(m.handle)} size={24} />
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                 <View style={s.memberTop}>
                   <Text numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1, minWidth: 0, fontFamily: font.semibold, fontSize: fs.sm, color: c.text }}>@{m.handle}</Text>
                   <StatusDot color={statusColor(c, m)} pulse={m.status === 'working'} size={6} />
                 </View>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontFamily: font.mono, fontSize: fs.xs, color: c.muted }}>{m.model || AGENT_NAMES[m.kind] || m.kind}</Text>
+                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontFamily: font.mono, fontSize: fs.xs, color: c.muted }}>{m.model || AGENT_NAMES[m.kind] || m.kind}{m.effort ? ` · ${m.effort}` : ''}</Text>
               </View>
-            </View>
+            </Pressable>
           ))}
         </ScrollView>
       ) : null}
@@ -155,6 +159,7 @@ export default function TeamScreen() {
                   {authorRow(handle, null)}
                   {l.steps.length ? <AgentActivity items={l.steps.map((step, i) => ({ id: `${handle}-${i}`, label: step, status: i === l.steps.length - 1 && !l.text ? 'running' : 'done' }))} /> : null}
                   {l.text ? <AssistantMessage text={l.text} streaming onCopy={() => Clipboard.setStringAsync(l.text)} /> : null}
+                  {l.drawing ? <DrawingImage /> : null}
                 </View>
               ))}
             </View>
@@ -197,6 +202,7 @@ export default function TeamScreen() {
         disabled={!connected || sending}
         onAttach={() => toast.show({ title: 'Attach files on your desktop', description: 'Team members read your project directly.' })}
       />
+      <TeamMemberSheet taskId={id} member={members.find(m => m.handle === editing) ?? null} name={AGENT_NAMES[members.find(m => m.handle === editing)?.kind ?? ''] ?? ''} onClose={() => setEditing(null)} />
     </ChatScreen>
   );
 }
@@ -206,7 +212,7 @@ const s = StyleSheet.create({
   strip: { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth },
   // A compact strip of equal cards under the header; any number of members scrolls sideways.
   stripContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
-  member: { width: 136, height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  member: { width: 156, height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   memberTop: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   block: { paddingHorizontal: 16, gap: 8 },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

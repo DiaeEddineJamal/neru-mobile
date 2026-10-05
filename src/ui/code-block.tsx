@@ -1,14 +1,15 @@
 // Port of beui.dev/components/agents/code-block (+ agents/agent-code line rendering).
-// ponytail: no syntax highlighting; beUI tokenises with shiki, too heavy for Hermes. Lines render in one colour;
-// add a small tokenizer if replies need colour. Not ported: highlightLines/filename/wrap (Markdown has no use for them).
+// beUI tokenises with shiki, too heavy for Hermes; ui/highlight colours lines like VS Code's Dark+/Light+ instead.
+// Not ported: highlightLines/filename/wrap (Markdown has no use for them).
 import * as Clipboard from 'expo-clipboard';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { Icon } from '@/components/Icon';
-import { font, fs, useColors } from '@/theme';
+import { font, fs, useColors, useScheme } from '@/theme';
 import { Button, SwapIcon } from '@/ui/button';
+import { tokenize, vscode } from '@/ui/highlight';
 import { Loader } from '@/ui/loader';
 
 type Props = { code: string; lang: string; /** Fence still open mid-stream: shows "Writing" and follows the tail. */ streaming?: boolean };
@@ -28,8 +29,10 @@ export function CodeBlock({ code, lang, streaming = false }: Props) {
     timer.current = setTimeout(() => setCopied(false), 1600);
   };
 
-  const lines = code.split('\n');
-  const line = { fontFamily: font.mono, fontSize: fs.xs, lineHeight: 20 };
+  const palette = vscode[useScheme()];
+  const lines = useMemo(() => tokenize(code, lang), [code, lang]);
+  // No ligatures: `<!--` and `=>` must read as typed.
+  const line = { fontFamily: font.mono, fontSize: fs.xs, lineHeight: 20, fontVariant: ['no-common-ligatures', 'no-contextual'] as ('no-common-ligatures' | 'no-contextual')[] };
   const statusColor = streaming ? c.link : c.sage;
 
   return (
@@ -59,10 +62,12 @@ export function CodeBlock({ code, lang, streaming = false }: Props) {
       >
         <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false}>
           <View>
-            {lines.map((content, i) => (
+            {lines.map((tokens, i) => (
               <View key={i} style={{ flexDirection: 'row', minHeight: 20 }}>
                 <Text aria-hidden style={[line, s.gutter, { color: c.muted }]}>{i + 1}</Text>
-                <Text selectable style={[line, { color: c.text, opacity: 0.85, paddingLeft: 4, paddingRight: 16 }]}>{content}</Text>
+                <Text selectable style={[line, { color: palette.plain, paddingLeft: 4, paddingRight: 16 }]}>
+                  {tokens.map((t, j) => <Text key={j} style={t.kind === 'comment' ? { color: palette.comment, fontStyle: 'italic' } : { color: palette[t.kind] }}>{t.text}</Text>)}
+                </Text>
               </View>
             ))}
           </View>

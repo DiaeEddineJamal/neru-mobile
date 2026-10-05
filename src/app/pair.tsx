@@ -2,7 +2,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { haptic } from '@/haptics';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { pair, unpair, useRemote } from '@/remote/store';
 import { font, fs, useColors } from '@/theme';
@@ -45,7 +46,7 @@ export default function Pair() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView bottomOffset={96} style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
       {remote.desktopName ? (
         <View style={[s.card, { backgroundColor: c.surface2, borderColor: c.border }]}>
           <Text style={{ fontFamily: font.semibold, fontSize: fs.md, color: c.text }}>{remote.desktopName}</Text>
@@ -73,7 +74,7 @@ export default function Pair() {
 
       <TextField label="Or paste the pairing text" value={code} onChangeText={setCode} placeholder="neru://pair?..." autoCapitalize="none" autoCorrect={false} error={error} />
       <ActionButton title={connecting ? 'Connecting to desktop' : 'Pair'} loading={connecting} variant="secondary" disabled={!code.trim()} onPress={() => connect(code)} />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

@@ -2,13 +2,14 @@ import * as Clipboard from 'expo-clipboard';
 import { haptic } from '@/haptics';
 import { askForNotifications } from '@/notify';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { pickFiles, pickPhotos, takePhoto } from '@/attach';
+import { greeting } from '@/greetings';
 import { ChatScreen, VoiceComposer } from '@/components/ChatShell';
 import { Icon, IconButton, type IconName } from '@/components/Icon';
 import { editMessage, NO_MODEL, retry, send, setModelSheet, stop, useStore, type Attachment, type Message } from '@/store';
@@ -25,10 +26,6 @@ import { TextReveal } from '@/ui/text-reveal';
 import { ThinkingShimmer } from '@/ui/thinking-shimmer';
 import { useToast } from '@/ui/toast';
 
-function greeting() {
-  const h = new Date().getHours();
-  return h < 5 ? 'Up late?' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-}
 
 /** Markdown read aloud sounds like punctuation soup; speak the words only. */
 const speakable = (md: string) =>
@@ -65,6 +62,14 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   const [viewer, setViewer] = useState<{ images: Attachment[]; index: number } | null>(null);
   const [scrolledUp, setScrolledUp] = useState(false);
   const [openedAt] = useState(Date.now);
+  const name = useStore(st => st.settings.name);
+  // A new line every time the new-chat screen comes back into view (it stays mounted in the drawer).
+  const [hello, setHello] = useState(() => greeting(name));
+  const shown = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (shown.current) setHello(greeting(name));
+    shown.current = true;
+  }, [name]));
 
   const messages = chat?.messages ?? [];
   const reversed = [...messages].reverse(); // inverted list: newest first, pinned to the bottom
@@ -136,7 +141,8 @@ export function ChatView({ chatId }: { chatId: string | null }) {
     const live = isLast && streaming;
     return (
       <Animated.View entering={item.createdAt > openedAt - FRESH_MS ? FadeIn.duration(220).delay(120) : undefined} style={{ paddingHorizontal: 20, gap: 8 }}>
-        {item.reasoning ? <ReasoningText text={item.reasoning} streaming={live && !item.text} /> : null}
+        {/* While a reply streams, the orb footer below says what the model is doing, as on the desktop. */}
+        {item.reasoning ? <ReasoningText text={item.reasoning} streaming={false} /> : null}
         {item.error ? (
           <View style={[s.error, { backgroundColor: c.surface2, borderColor: c.border }]} accessibilityLiveRegion="polite">
             <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.danger, lineHeight: 20 }}>{item.error}</Text>
@@ -160,9 +166,8 @@ export function ChatView({ chatId }: { chatId: string | null }) {
           >
             <AssistantMessage text={item.text} streaming={live} onCopy={() => copy(item.text)} onRetry={isLast && chatId ? () => retry(chatId) : undefined} />
           </ContextMenu>
-        ) : live && !item.reasoning ? (
-          <ThinkingShimmer />
         ) : null}
+        {live && !item.error ? <ThinkingShimmer {...(item.text ? { state: 'composing', label: 'Composing' } : item.reasoning ? { state: 'solving', label: 'Reasoning' } : { state: 'working', label: 'Thinking' })} /> : null}
         {!live && item.model && isLast ? <Text style={[s.model, { color: c.muted }]}>{item.model}</Text> : null}
       </Animated.View>
     );
@@ -201,7 +206,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
       ) : (
         <View style={s.empty}>
           <Image source={require('@/assets/images/neru-mascot.png')} style={{ width: 72, height: 72 }} contentFit="contain" accessibilityIgnoresInvertColors />
-          <TextReveal text={greeting()} style={[s.hello, { color: c.text }]} />
+          <TextReveal key={hello} text={hello} style={[s.hello, { color: c.text }]} />
           {hasModel ? (
             <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.muted }}>How can I help?</Text>
           ) : (

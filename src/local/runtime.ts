@@ -39,7 +39,11 @@ export async function streamLocal(model: string, messages: ChatMessage[], onDelt
   const status = native.addListener('status', e => { if (e.requestId === id && e.phase && !signal.aborted) onStatus(e.phase); });
   const cancel = () => native.cancel();
   signal.addEventListener('abort', cancel, { once: true });
-  try { await native.generate(id, uri, sent, { ...configForLocal(model), vision: !!info?.vision }); }
+  // The native side takes one system prompt from the model's configuration and skips system messages, so
+  // fold them in: Neru's instructions, who the user is, or a one-off task such as naming the chat.
+  const config = configForLocal(model);
+  const extra = messages.filter(m => m.role === 'system').map(m => m.text).join('\n\n');
+  try { await native.generate(id, uri, sent.filter(m => m.role !== 'system'), { ...config, systemPrompt: extra ? `${config.systemPrompt}\n\n${extra}` : config.systemPrompt, vision: !!info?.vision }); }
   finally { signal.removeEventListener('abort', cancel); tokens.remove(); status.remove(); }
 }
 export const unloadLocal = async () => { await native?.unload(); };

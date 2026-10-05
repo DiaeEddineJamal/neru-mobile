@@ -1,5 +1,5 @@
 // Dictation with the platform speech recognizer. Text streams into the composer as you speak,
-// and the volume drives the voice glow.
+// and the volume drives the voice stripes.
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useRef, useState } from 'react';
 
@@ -14,19 +14,25 @@ export function useVoice(onText: (text: string) => void, currentText: string) {
   const [level, setLevel] = useState(0);
   const base = useRef('');
   const finals = useRef('');
+  const interim = useRef('');
+  // Off once dictation is cancelled, so a result still in flight cannot refill a composer that was just sent.
+  const live = useRef(false);
 
   const join = (...parts: string[]) => parts.map(p => p.trim()).filter(Boolean).join(' ');
 
   useSpeechRecognitionEvent('result', e => {
+    if (!live.current) return;
     const spoken = e.results[0]?.transcript ?? '';
     if (e.isFinal) finals.current = join(finals.current, spoken);
+    interim.current = e.isFinal ? '' : spoken;
     onText(join(base.current, finals.current, e.isFinal ? '' : spoken));
   });
   // Measured on a Galaxy S25: about -2 in silence, peaks near 4-5 for normal speech (the documented
   // -2..10 range is never reached). Map that span to 0..1, with a gentle curve so quiet syllables still register.
   useSpeechRecognitionEvent('volumechange', e => setLevel(Math.min(1, Math.max(0, (e.value + 2) / 6.5)) ** 0.8));
-  useSpeechRecognitionEvent('end', () => (setState('idle'), setLevel(0)));
+  useSpeechRecognitionEvent('end', () => (live.current = false, setState('idle'), setLevel(0)));
   useSpeechRecognitionEvent('error', e => {
+    live.current = false;
     setState('idle');
     setLevel(0);
     if (e.error !== 'aborted' && e.error !== 'no-speech') void notice({ title: 'Dictation stopped', message: e.message || 'Speech recognition stopped. Try again in a moment.', icon: 'mic' });
@@ -37,6 +43,8 @@ export function useVoice(onText: (text: string) => void, currentText: string) {
     if (!perm.granted) return void notice({ title: 'Allow the microphone', message: 'Neru needs the microphone and speech recognition to turn your voice into text. You can allow them in your phone’s settings.', icon: 'mic', settings: true });
     base.current = currentText;
     finals.current = '';
+    interim.current = '';
+    live.current = true;
     setState('listening');
     ExpoSpeechRecognitionModule.start({
       lang: getState().settings.voiceLang,
@@ -53,5 +61,20 @@ export function useVoice(onText: (text: string) => void, currentText: string) {
     ExpoSpeechRecognitionModule.stop();
   };
 
-  return { state, level, start, stop, toggle: () => (state === 'idle' ? start() : stop()) };
+  /** Ends dictation and drops whatever the recognizer has not delivered yet. */
+  const cancel = () => {
+    live.current = false;
+    setState('idle');
+    setLevel(0);
+    ExpoSpeechRecognitionModule.abort();
+  };
+
+  /** The user typed or deleted mid-dictation: keep their text, and add the next words after it. */
+  const edit = (text: string) => {
+    const tail = interim.current;
+    base.current = tail && text.endsWith(tail) ? text.slice(0, -tail.length) : text;
+    finals.current = '';
+  };
+
+  return { state, level, start, stop, cancel, edit, toggle: () => (state === 'idle' ? start() : stop()) };
 }

@@ -1,5 +1,17 @@
 # Neru mobile changelog
 
+## 0.12.0 · 2026-10-05
+
+**Made for you.** Neru learns your name, Codex draws for you in Team, and Pocket Lab gets open models for coding and everyday chat.
+
+- **Neru knows you.** Tell Neru your name and how to address you when you set up, or later in Settings. Every model uses it, on your phone or in the cloud, and each new chat opens with a fresh greeting for the time of day.
+- **Team, your way.** Tap a member to pick its model and reasoning effort, like on the desktop. Ask Codex for an image and watch it take shape, then save it to your gallery.
+- **More models in Pocket Lab.** Eight open models that need no account, from Qwen2.5 Coder for code to tiny Qwen3 0.6B. Sign in with Hugging Face or paste a token for gated models, and downloads pick up exactly where they stopped.
+- **Clearer replies.** Code is coloured like VS Code, thinking orbs show what the model is doing, and chats are named after what they are about.
+- **Voice that flows.** Dictation shows Claude-style voice stripes that glide with your voice, and edits you make while talking stay put.
+- **Kinder notifications.** Replies arrive as banners, and an occasional check-in reminds you Neru is there for the day's plans. Turn check-ins off in Settings.
+- **Smoother everywhere.** Text fields stay above the keyboard, the menu closes it, a right swipe on a chat stars, renames or deletes it, and Use this model opens a new chat.
+
 ## 0.11.0 · 2026-10-05
 
 **It can see now.** Show a photo to a model running on your phone, hear back when replies land, and feel every tap.

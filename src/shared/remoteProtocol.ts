@@ -101,7 +101,11 @@ export interface RemoteCommands {
    * Added: starts a team task like the desktop's New task dialog (an empty projectPath is a task with no folder).
    * A non-empty `text` goes out as the first message, to `to` (handles or 'all'; empty: whoever it mentions, else the first member).
    */
-  create_team_task: { args: { title: string; projectPath: string; members: { kind: string; model?: string; mode?: string }[]; text?: string; to?: string[] }; result: TeamTask }
+  create_team_task: { args: { title: string; projectPath: string; members: { kind: string; model?: string; mode?: string; effort?: string }[]; text?: string; to?: string[] }; result: TeamTask }
+  /** Added: changes one member's model, permission mode or reasoning effort (omitted fields stay; '' is the agent default). */
+  update_team_member: { args: { id: string; handle: string; model?: string; mode?: string; effort?: string }; result: TeamTask }
+  /** Added: a generated image from a team post (`name` from `TeamPost.images`). */
+  team_image: { args: { id: string; name: string }; result: { mime: string; base64: string } }
 }
 export type RemoteCommand = keyof RemoteCommands
 

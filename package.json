@@ -25,6 +25,7 @@
     "expo-image-picker": "~57.0.20",
     "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.11",
+    "expo-media-library": "~57.0.5",
     "expo-notifications": "~57.0.21",
     "expo-router": "~57.0.24",
     "expo-secure-store": "~57.0.4",
@@ -48,7 +49,7 @@
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1",
-    "voice-glow": "^0.2.1"
+    "thinking-orbs": "^0.3.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

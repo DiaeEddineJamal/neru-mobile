@@ -6,7 +6,8 @@ import { haptic } from '@/haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Animated, { FadeIn, FadeInDown, SlideInRight, SlideOutLeft, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,8 +22,13 @@ import { EASE_OUT, SPRING_LAYOUT } from '@/ui/motion';
 import { RadioGroup, type RadioOption } from '@/ui/radio';
 import { TextReveal } from '@/ui/text-reveal';
 
-type Step = 'welcome' | 'tour' | 'path' | 'key' | 'done';
-const ORDER: Step[] = ['welcome', 'tour', 'path', 'key', 'done'];
+type Step = 'welcome' | 'you' | 'tour' | 'path' | 'key' | 'done';
+const ORDER: Step[] = ['welcome', 'you', 'tour', 'path', 'key', 'done'];
+
+const genders: RadioOption[] = [
+  { value: 'male', title: 'Male', description: 'Models call you he, and use masculine forms in languages that have them.' },
+  { value: 'female', title: 'Female', description: 'Models call you she, and use feminine forms in languages that have them.' },
+];
 
 const paths: RadioOption[] = [
   { value: 'free', title: 'Free models', description: 'Use a free key from NVIDIA, Google or OpenRouter. Takes about a minute.', icon: 'sparkles', badge: 'Recommended' },
@@ -40,7 +46,7 @@ const providers: RadioOption[] = [
 const tour: [IconName, string, string][] = [
   ['sparkles', 'Chat with free models', 'Neru switches to the next free model when one runs out, so you keep going.'],
   ['desktop', 'Stay close to your desktop', 'Follow coding sessions, read diffs and approve changes from anywhere in the house.'],
-  ['mic', 'Just say it', 'Tap the mic and talk. The glow listens with you.'],
+  ['mic', 'Just say it', 'Tap the mic and talk. The stripes move with your voice.'],
 ];
 
 function Progress({ index, total }: { index: number; total: number }) {
@@ -89,6 +95,8 @@ export default function Onboarding() {
   const [provider, setProvider] = useState('nvidia');
   const [key, setKey] = useState('');
   const [error, setError] = useState<string>();
+  const [name, setName] = useState(getState().settings.name ?? '');
+  const [gender, setGender] = useState(getState().settings.gender ?? '');
   const [busy, setBusy] = useState(false);
 
   const index = ORDER.indexOf(step);
@@ -137,6 +145,15 @@ export default function Onboarding() {
             <Animated.Text entering={FadeInDown.delay(500).springify()} style={[s.lead, { color: c.secondary }]}>
               Neru brings free AI models and your desktop coding sessions to your phone.
             </Animated.Text>
+          </View>
+        );
+      case 'you':
+        return (
+          <View style={{ gap: 20 }}>
+            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>What should Neru call you?</Text>
+            <Text style={[s.lead, { color: c.secondary, textAlign: 'left' }]}>Every model you chat with will know your name and how to address you. Change it any time in Settings.</Text>
+            <TextField label="Your name" value={name} onChangeText={setName} placeholder="First name" autoCapitalize="words" autoComplete="given-name" textContentType="givenName" returnKeyType="done" />
+            <RadioGroup options={genders} value={gender} onChange={setGender} />
           </View>
         );
       case 'tour':
@@ -190,7 +207,7 @@ export default function Onboarding() {
             <Animated.View entering={FadeIn.springify()} style={[s.doneMark, { backgroundColor: c.mossAction }]}>
               <Icon name="check" size={40} color={c.onAction} />
             </Animated.View>
-            <TextReveal text="You're all set." style={[s.display, { color: c.text }]} />
+            <TextReveal text={getState().settings.name ? `You're all set, ${getState().settings.name!.split(/\s+/)[0]}.` : "You're all set."} style={[s.display, { color: c.text }]} />
             <Text style={[s.lead, { color: c.secondary }]}>
               You’re chatting with {getState().settings.model || 'your new model'}. Tap its name at the top any time to switch.
             </Text>
@@ -204,9 +221,17 @@ export default function Onboarding() {
       case 'welcome':
         return (
           <>
-            <ActionButton title="Get started" onPress={() => go('tour')} />
+            <ActionButton title="Get started" onPress={() => go('you')} />
             <ActionButton title="I already use Neru on my computer" variant="ghost" onPress={() => finish('/pair')} />
           </>
+        );
+      case 'you':
+        return (
+          <ActionButton
+            title={name.trim() ? `Nice to meet you, ${name.trim().split(/\s+/)[0]}` : 'Continue'}
+            disabled={!name.trim() || !gender}
+            onPress={() => (updateSettings({ name: name.trim(), gender: gender as 'male' | 'female' }), go('tour'))}
+          />
         );
       case 'tour':
         return <ActionButton title="Continue" onPress={() => go('path')} />;
@@ -233,11 +258,11 @@ export default function Onboarding() {
         {step !== 'done' ? <ActionButton title="Skip" variant="ghost" onPress={() => finish()} /> : <View style={{ width: 48 }} />}
       </View>
 
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={[s.content, { paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">
         <Animated.View key={step} entering={SlideInRight.springify().damping(30).stiffness(260)} exiting={SlideOutLeft.duration(180)} style={{ flex: 1 }}>
           {body()}
         </Animated.View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[s.actions, { paddingBottom: insets.bottom + 16 }]}>{actions()}</View>
     </View>

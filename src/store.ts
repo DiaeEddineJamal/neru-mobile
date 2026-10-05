@@ -24,6 +24,11 @@ export type Settings = {
   seenVersion: string;
   /** A release the user chose "Later" for; offered again only once a newer one ships. */
   skippedUpdate?: string;
+  /** What models call the user, and which pronouns and grammatical gender they use for them. */
+  name?: string;
+  gender?: 'male' | 'female';
+  /** Occasional, gentle check-in notifications. */
+  nudges: boolean;
 };
 
 type State = {
@@ -37,7 +42,7 @@ type State = {
   modelSheet: boolean;
 };
 
-const defaults: Settings = { providerId: 'nvidia', model: '', baseUrls: {}, fallback: true, haptics: true, theme: 'system', voiceLang: 'en-US', onboarded: false, seenVersion: '' };
+const defaults: Settings = { providerId: 'nvidia', model: '', baseUrls: {}, fallback: true, haptics: true, theme: 'system', voiceLang: 'en-US', onboarded: false, seenVersion: '', nudges: true };
 const saved = kvGetSync('settings');
 
 let state: State = {
@@ -164,8 +169,16 @@ async function imagePart(a: Attachment) {
   }
 }
 
+/** Tells every model, cloud or on-device, who it is talking to. */
+export function profilePrompt(s: Settings = state.settings) {
+  const name = s.name?.trim();
+  if (!name && !s.gender) return '';
+  const who = s.gender === 'male' ? 'He is a man: use he/him, and masculine forms in languages with grammatical gender.' : s.gender === 'female' ? 'She is a woman: use she/her, and feminine forms in languages with grammatical gender.' : '';
+  return [name ? `The user's name is ${name}. Use it now and then, naturally, not in every reply.` : '', who].filter(Boolean).join(' ');
+}
+
 async function history(chat: Chat): Promise<ChatMessage[]> {
-  const out: ChatMessage[] = [{ role: 'system', text: SYSTEM }];
+  const out: ChatMessage[] = [{ role: 'system', text: [SYSTEM, profilePrompt()].filter(Boolean).join('\n\n') }];
   for (const m of chat.messages) {
     if (m.role === 'assistant' && (m.error || !m.text)) continue;
     const images = (await Promise.all((m.attachments ?? []).filter(a => a.kind === 'image').map(imagePart))).filter(x => x !== null);
@@ -177,9 +190,11 @@ async function history(chat: Chat): Promise<ChatMessage[]> {
 }
 
 let abort: AbortController | null = null;
+let titling: AbortController | null = null;
 
 async function streamReply(chatId: string) {
   stop();
+  titling?.abort(); // a phone runs one model at a time: the new reply goes first
   const controller = new AbortController();
   abort = controller;
   const reply: Message = { id: uid(), role: 'assistant', text: '', createdAt: Date.now() };
@@ -241,30 +256,34 @@ async function streamReply(chatId: string) {
   saveMessage(chatId, final);
   saveChat(chatOf(chatId)!);
   const done = chatOf(chatId)!;
-  if (text && done.messages.length === 2) void autoTitle(chatId, providerId, model, done.messages[0].text, text);
+  // Name the chat after its first real answer (a failed first try or a retry still counts as the first).
+  const answered = done.messages.filter(m => m.role === 'assistant' && m.text && !m.error).length;
+  const question = done.messages.find(m => m.role === 'user')?.text ?? '';
+  if (text && answered === 1) void autoTitle(chatId, providerId, model, question, text);
 }
 
-/** Names a new chat from its first exchange, like Claude does; keeps the first words if this fails. */
+/** Names a new chat from its first exchange with the model that answered, on-device ones included, like
+ * Claude does; keeps the first words if this fails. */
 async function autoTitle(chatId: string, providerId: string, model: string, question: string, answer: string) {
   let title = '';
+  const prompt: ChatMessage[] = [
+    { role: 'system', text: 'You name conversations. Reply with a short title of 2 to 6 words that says what this conversation is about, in the language the user wrote in. Title only: no quotes, no emoji, no punctuation at the end.' },
+    { role: 'user', text: `User: ${question.slice(0, 1500)}\n\nAssistant: ${answer.slice(0, 1500)}\n\nTitle:` },
+  ];
+  const timeout = new AbortController();
+  titling = timeout;
+  const timer = setTimeout(() => timeout.abort(), providerId === 'on-device' ? 45_000 : 15_000);
   try {
-    const config = await configFor(providerId, model);
-    const timeout = new AbortController();
-    const timer = setTimeout(() => timeout.abort(), 15_000);
-    await streamChat(
-      config,
-      [
-        { role: 'system', text: 'Write a title of 2 to 6 words for this conversation. Reply with the title only: no quotes, no punctuation at the end.' },
-        { role: 'user', text: `User: ${question.slice(0, 1500)}\n\nAssistant: ${answer.slice(0, 1500)}` },
-      ],
-      { onDelta: d => (title += d) },
-      timeout.signal,
-    );
-    clearTimeout(timer);
+    if (providerId === 'on-device') await streamLocal(model, prompt, d => (title += d), timeout.signal, () => {}, () => {});
+    else await streamChat(await configFor(providerId, model), prompt, { onDelta: d => (title += d) }, timeout.signal);
   } catch {
     return;
+  } finally {
+    clearTimeout(timer);
+    if (titling === timeout) titling = null;
   }
-  title = title.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^["'#*\s]+|["'.*\s]+$/g, '').split('\n')[0].slice(0, 60);
+  if (timeout.signal.aborted) return;
+  title = title.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^\s*title\s*:\s*/i, '').replace(/^["'#*\s]+|["'.*\s]+$/g, '').split('\n')[0].slice(0, 60);
   if (title && chatOf(chatId)) renameChat(chatId, title);
 }
 

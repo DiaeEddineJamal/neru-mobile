@@ -11,6 +11,9 @@ import { useToast } from '@/ui/toast';
 import { font, fs, TAP, useColors } from '@/theme';
 import { confirm } from '@/ui/confirm';
 import { SelectSheet } from '@/ui/select';
+import { BottomSheet } from '@/ui/bottom-sheet';
+import { ActionButton } from '@/ui/button-base';
+import { TextField } from '@/ui/input';
 import { Switch } from '@/ui/switch';
 import { checkForUpdate, offerUpdate } from '@/update';
 import * as Notifications from 'expo-notifications';
@@ -20,6 +23,10 @@ const themes = [
   { value: 'system', label: 'System' },
   { value: 'dark', label: 'Dark' },
   { value: 'light', label: 'Light' },
+];
+const genders = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
 ];
 const languages = [
   { value: 'en-US', label: 'English (US)' },
@@ -35,7 +42,9 @@ export default function Settings() {
   const settings = useStore(s => s.settings);
   const keyed = useStore(s => s.keyed.length);
   const desktop = useRemote(s => s.desktopName);
-  const [sheet, setSheet] = useState<'theme' | 'voice' | null>(null);
+  const [sheet, setSheet] = useState<'theme' | 'voice' | 'gender' | 'name' | null>(null);
+  const [name, setName] = useState(settings.name ?? '');
+  const saveName = () => { updateSettings({ name: name.trim() || undefined }); setSheet(null); };
   const toast = useToast();
   const chats = useStore(s => s.chats.length);
   const [checking, setChecking] = useState<'idle' | 'checking' | 'latest' | 'offline'>('idle');
@@ -87,6 +96,10 @@ export default function Settings() {
 
   return (
     <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
+      {group('You', [
+        row('Name', settings.name || 'Not set', () => (setName(settings.name ?? ''), setSheet('name'))),
+        row('Gender', genders.find(g => g.value === settings.gender)?.label ?? 'Not set', () => setSheet('gender')),
+      ])}
       {group('Models', [
         row('Model', modelLabel(settings), () => setModelSheet(true)),
         row('Pocket Lab', 'Models that run offline', () => router.push('/models')),
@@ -104,6 +117,13 @@ export default function Settings() {
         row('Appearance', themes.find(t => t.value === settings.theme)?.label, () => setSheet('theme')),
         row('Dictation language', languages.find(l => l.value === settings.voiceLang)?.label ?? settings.voiceLang, () => setSheet('voice')),
         row('Notifications', notifications === null ? undefined : notifications ? 'On' : 'Off', () => void toggleNotifications()),
+        <View key="nudges" style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.label, { color: c.text }]}>Check-ins</Text>
+            <Text style={{ fontFamily: font.sans, fontSize: fs.xs, color: c.muted }}>A friendly note now and then, never more than one every couple of days</Text>
+          </View>
+          <Switch value={settings.nudges} onValueChange={v => updateSettings({ nudges: v })} accessibilityLabel="Check-ins" />
+        </View>,
         <View key="haptics" style={s.row}>
           <View style={{ flex: 1 }}>
             <Text style={[s.label, { color: c.text }]}>Haptics</Text>
@@ -126,8 +146,16 @@ export default function Settings() {
       ])}
       {group('About', [
         row("What's new", undefined, () => router.push('/changelog')),
+        row('Image animation: Grid Reveal by Rare UI', 'rareui.com', () => void Linking.openURL('https://www.rareui.com/components/gridreveal')),
       ])}
 
+      <SelectSheet open={sheet === 'gender'} onClose={() => setSheet(null)} title="Gender" options={genders} value={settings.gender ?? ''} onChange={v => (updateSettings({ gender: v as S['gender'] }), setSheet(null))} />
+      <BottomSheet open={sheet === 'name'} onClose={() => setSheet(null)} title="Your name">
+        <View style={{ gap: 12, paddingBottom: 8 }}>
+          <TextField label="Name" value={name} onChangeText={setName} placeholder="First name" autoCapitalize="words" autoFocus onSubmitEditing={saveName} returnKeyType="done" />
+          <ActionButton title="Save" onPress={saveName} />
+        </View>
+      </BottomSheet>
       <SelectSheet open={sheet === 'theme'} onClose={() => setSheet(null)} title="Appearance" options={themes} value={settings.theme} onChange={v => (updateSettings({ theme: v as S['theme'] }), setSheet(null))} />
       <SelectSheet open={sheet === 'voice'} onClose={() => setSheet(null)} title="Dictation language" options={languages} value={settings.voiceLang} onChange={v => (updateSettings({ voiceLang: v }), setSheet(null))} />
     </ScrollView>

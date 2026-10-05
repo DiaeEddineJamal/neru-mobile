@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
-import { useWindowDimensions } from 'react-native';
+import { Keyboard, useWindowDimensions } from 'react-native';
 
 import { DrawerContent } from '@/components/DrawerContent';
 import { IconButton } from '@/components/Icon';
@@ -19,6 +19,8 @@ export default function DrawerLayout() {
       drawerContent={props => <DrawerContent close={() => props.navigation.closeDrawer()} />}
       screenOptions={({ navigation }) => ({
         drawerType: 'slide',
+        // A swipe open closes the keyboard too, like the menu button.
+        keyboardDismissMode: 'on-drag',
         drawerStyle: { width: Math.min(width * 0.85, 360), backgroundColor: c.surface },
         overlayColor: 'rgba(0,0,0,0.35)',
         // Android's back gesture owns the outer ~30dp; a wider zone lets a swipe from just inside it open the drawer.
@@ -27,8 +29,8 @@ export default function DrawerLayout() {
         headerStyle: { backgroundColor: c.bg },
         headerTitleAlign: 'center',
         headerTitleStyle: { fontFamily: font.semibold, color: c.text },
-        headerLeft: () => <IconButton name="menu" label="Open chats" color={c.text} onPress={() => navigation.openDrawer()} style={{ marginLeft: 4 }} />,
-        headerRight: () => <IconButton name="compose" label="New chat" color={c.text} onPress={() => router.navigate('/')} style={{ marginRight: 4 }} />,
+        headerLeft: () => <IconButton name="menu" label="Open chats" color={c.text} onPress={() => (Keyboard.dismiss(), navigation.openDrawer())} style={{ marginLeft: 4 }} />,
+        headerRight: () => <IconButton name="compose" label="New chat" color={c.text} onPress={() => (Keyboard.dismiss(), router.navigate('/'))} style={{ marginRight: 4 }} />,
         headerTitle: () => <ModelButton />,
         sceneStyle: { backgroundColor: c.bg },
       })}

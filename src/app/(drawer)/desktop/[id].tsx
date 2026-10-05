@@ -105,9 +105,11 @@ export default function DesktopSession() {
       const live = view!.live!;
       return (
         <View style={s.block}>
-          {live.reasoning ? <ReasoningText text={live.reasoning} streaming={!live.text} /> : null}
+          {live.reasoning ? <ReasoningText text={live.reasoning} streaming={false} /> : null}
           {live.tools.map(t => <ToolResult key={t.id} {...splitStep(t.label)} status={toolStatus(t.status)} />)}
-          {live.text ? <AssistantMessage text={live.text} streaming onCopy={() => Clipboard.setStringAsync(live.text)} /> : <ThinkingShimmer label="Working" />}
+          {live.text ? <AssistantMessage text={live.text} streaming onCopy={() => Clipboard.setStringAsync(live.text)} /> : null}
+          {/* The desktop's status line: an orb for what the agent is doing right now. */}
+          <ThinkingShimmer {...(live.tools.some(t => t.status === 'running') ? { state: 'weaving', label: 'Working' } : live.text ? { state: 'composing', label: 'Composing' } : live.reasoning ? { state: 'solving', label: 'Reasoning' } : { state: 'working', label: 'Thinking' })} />
         </View>
       );
     }

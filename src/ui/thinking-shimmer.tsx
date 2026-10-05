@@ -6,6 +6,7 @@ import { type StyleProp, type TextStyle, View } from 'react-native';
 import Animated, { type EntryExitAnimationFunction, Easing, interpolateColor, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 import { font, fs, useColors } from '@/theme';
+import { ThinkingOrb, type OrbState } from '@/ui/thinking-orb';
 
 /** Sweep clock, 0→1 linear per `duration` seconds. Reduced motion holds the gradient still, as beUI's CSS does. */
 export function useShimmerClock(duration: number) {
@@ -39,14 +40,18 @@ export function ShimmerChar({ char, clock, u, style, entering, exiting }: {
   return <Animated.Text entering={entering} exiting={exiting} style={[style, tint]}>{char}</Animated.Text>;
 }
 
-export function ThinkingShimmer({ label = 'Thinking' }: { label?: string }) {
+/** The desktop's agent status line: a thinking orb for what the model is doing, and its shimmering label. */
+export function ThinkingShimmer({ label = 'Thinking', state = 'working' }: { label?: string; state?: OrbState }) {
   const clock = useShimmerClock(1.8);
   const chars = Array.from(`${label}…`);
   return (
-    <View accessible accessibilityLabel={label} accessibilityLiveRegion="polite" style={{ flexDirection: 'row', alignSelf: 'flex-start' }}>
-      {chars.map((ch, i) => (
-        <ShimmerChar key={i} char={ch} clock={clock} u={(i + 0.5) / chars.length} style={{ fontFamily: font.medium, fontSize: fs.base, lineHeight: 24 }} />
-      ))}
+    <View accessible accessibilityLabel={label} accessibilityLiveRegion="polite" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}>
+      <ThinkingOrb state={state} />
+      <View style={{ flexDirection: 'row' }}>
+        {chars.map((ch, i) => (
+          <ShimmerChar key={i} char={ch} clock={clock} u={(i + 0.5) / chars.length} style={{ fontFamily: font.medium, fontSize: fs.base, lineHeight: 24 }} />
+        ))}
+      </View>
     </View>
   );
 }

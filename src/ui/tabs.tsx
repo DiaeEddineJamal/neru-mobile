@@ -1,6 +1,8 @@
 // Port of beui.dev/components/motion/tabs (pill variant)
-// The shared-layout pill glides on the component's own spring (245/36/1.2, no
-// overshoot), and the active-colour labels are clipped to the pill as it moves,
+// The pill moves edge by edge: the edge leading the way springs ahead and the
+// trailing edge follows a beat later, so the pill stretches toward the new tab
+// and settles back to its width (the liquid tab switch of iOS and Telegram).
+// The active-colour labels are clipped to the pill as it moves,
 // as beUI does with clip-path: a copy of the labels rides inside the pill,
 // counter-translated so it lines up with the labels underneath.
 // Not ported: hover colour, the overflow scroll arrows and edge fades (a
@@ -12,7 +14,8 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSprin
 import { haptic } from '@/haptics';
 import { font, fs, useColors } from '@/theme';
 
-const TAB_SPRING = { stiffness: 245, damping: 36, mass: 1.2 };
+const LEAD = { stiffness: 420, damping: 34, mass: 0.9 };
+const TRAIL = { stiffness: 190, damping: 26, mass: 1 };
 
 /** With `icon`, the tab shows only the glyph (drawn in the given colour); `label` becomes its accessibility name. */
 type Item = { value: string; label: string; icon?: (color: string) => ReactNode };
@@ -22,8 +25,8 @@ export function SegmentedTabs({ items, value, onChange }: { items: Item[]; value
   const c = useColors();
   const reduce = useReducedMotion();
   const [boxes, setBoxes] = useState<Record<string, Box>>({});
-  const x = useSharedValue(0);
-  const w = useSharedValue(0);
+  const left = useSharedValue(0);
+  const right = useSharedValue(0);
   const placed = useRef(false);
   const tx = boxes[value]?.x;
   const tw = boxes[value]?.w;
@@ -31,17 +34,18 @@ export function SegmentedTabs({ items, value, onChange }: { items: Item[]; value
   useEffect(() => {
     if (tx === undefined || tw === undefined) return;
     if (!placed.current || reduce) {
-      x.set(tx);
-      w.set(tw);
+      left.set(tx);
+      right.set(tx + tw);
       placed.current = true;
     } else {
-      x.set(withSpring(tx, TAB_SPRING));
-      w.set(withSpring(tw, TAB_SPRING));
+      const forward = tx > left.get();
+      left.set(withSpring(tx, forward ? TRAIL : LEAD));
+      right.set(withSpring(tx + tw, forward ? LEAD : TRAIL));
     }
-  }, [tx, tw, reduce, x, w]);
+  }, [tx, tw, reduce, left, right]);
 
-  const pillStyle = useAnimatedStyle(() => ({ width: w.get(), transform: [{ translateX: x.get() }] }));
-  const counterStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -x.get() }] }));
+  const pillStyle = useAnimatedStyle(() => ({ width: Math.max(0, right.get() - left.get()), transform: [{ translateX: left.get() }] }));
+  const counterStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -left.get() }] }));
 
   return (
     <View accessibilityRole="tablist" style={[s.list, { backgroundColor: c.surface2 }]}>

@@ -3,7 +3,6 @@
 // The Claude-style attachment tray and the mic button are Neru additions built from beUI parts: items enter and
 // leave like beUI attachment-upload thumbnails (opacity + scale 0.8, 0.2s EASE_OUT) and reflow on SPRING_LAYOUT.
 import { Image } from 'expo-image';
-import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, {
   type EntryExitAnimationFunction,
@@ -23,6 +22,7 @@ import { font, fs, useColors } from '@/theme';
 import { Button, SwapIcon } from '@/ui/button';
 import { DocCard } from '@/ui/message-attachments';
 import { EASE_OUT } from '@/ui/motion';
+import { VoiceWaveform } from '@/ui/voice-waveform';
 
 export type PromptAttachment = { id: string; name: string; uri?: string; kind: 'image' | 'file'; mime?: string };
 
@@ -41,8 +41,10 @@ type Props = {
   onRemoveAttachment?: (id: string) => void;
   /** Tapping an image thumbnail in the tray. */
   onOpenImage?: (id: string) => void;
-  /** Rendered over the box, untouchable (e.g. a voice glow). */
-  overlay?: ReactNode;
+  /** Dictation volume 0..1, drawn as Claude-style stripes while listening. */
+  voiceLevel?: number;
+  /** Dictation stopped and the last words are still arriving. */
+  voiceProcessing?: boolean;
   disabled?: boolean;
   /** Desktop sessions accept follow-ups while running. */
   allowSteer?: boolean;
@@ -66,7 +68,7 @@ const itemOut: EntryExitAnimationFunction = () => {
   };
 };
 
-export function PromptInput({ value, onChangeText, onSend, onStop, streaming, placeholder = 'Message Neru', onAttach, onVoice, listening = false, attachments = [], onRemoveAttachment, onOpenImage, overlay, disabled, allowSteer = false }: Props) {
+export function PromptInput({ value, onChangeText, onSend, onStop, streaming, placeholder = 'Message Neru', onAttach, onVoice, listening = false, attachments = [], onRemoveAttachment, onOpenImage, voiceLevel = 0, voiceProcessing = false, disabled, allowSteer = false }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
@@ -83,9 +85,6 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 12), backgroundColor: c.bg }}>
       <Animated.View style={[s.box, { backgroundColor: c.prompt }, border, disabled && { opacity: 0.6 }]}>
-        {/* Fixed rendering surface: text growth moves the glow; it never resizes its canvases.
-            Paint behind native text/buttons so the WebView cannot wash out their opacity. */}
-        {overlay ? <View pointerEvents="none" style={s.overlay}><View style={s.glow}>{overlay}</View></View> : null}
         {attachments.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.tray}>
             {attachments.map(a => (
@@ -136,6 +135,7 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
           <Button label={listening ? 'Stop dictation' : 'Voice input'} feedback="medium" onPress={onVoice} disabled={disabled} style={[s.icon, listening && { backgroundColor: c.mossDeep, borderRadius: 999 }]}>
             <Icon name="mic" size={18} color={listening ? c.moss : c.muted} />
           </Button>
+          {listening ? <VoiceWaveform level={voiceLevel} active={!voiceProcessing} color={c.text} /> : null}
           {streaming && canSubmit ? <Button label="Stop generating" onPress={onStop} style={s.icon}><Icon name="stop" size={12} color={c.muted} /></Button> : null}
           <Button
             label={showStop ? 'Stop generating' : streaming ? 'Send follow-up' : 'Send prompt'}
@@ -166,6 +166,4 @@ const s = StyleSheet.create({
   // Left icons sit 16 apart (beUI gap-1) so their 48dp hit areas don't overlap.
   row: { marginTop: 4, minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 16 },
   icon: { width: 32, height: 32, borderRadius: 16 },
-  overlay: { position: 'absolute', inset: 0, borderRadius: 16, overflow: 'hidden' },
-  glow: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 160 },
 });

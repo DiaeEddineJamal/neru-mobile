@@ -112,8 +112,8 @@ export function DrawerContent({ close }: { close: () => void }) {
     <SwipeableRow
       key={chat.id}
       actions={[
-        { key: 'rename', label: 'Rename', icon: 'compose', color: c.link, onPress: () => startRename(chat) },
         { key: 'star', label: chat.starred ? 'Unstar' : 'Star', icon: 'star', color: c.codeChip, onPress: () => toggleStar(chat.id) },
+        { key: 'rename', label: 'Rename', icon: 'compose', color: c.link, onPress: () => startRename(chat) },
         { key: 'delete', label: 'Delete', icon: 'trash', color: c.danger, onPress: () => remove(chat) },
       ]}
     >

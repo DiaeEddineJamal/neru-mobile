@@ -5,6 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { AppState, Platform } from 'react-native';
 
+import { scheduleNudges } from '@/nudges';
 import { getRemote, subscribeRemote } from '@/remote/store';
 import { getState, subscribe } from '@/store';
 
@@ -23,12 +24,15 @@ const preview = (text: string) => text.replace(/[#*_`>|~-]+/g, ' ').replace(/\s+
 export async function askForNotifications() {
   const current = await Notifications.getPermissionsAsync();
   if (current.granted || !current.canAskAgain) return current.granted;
-  return (await Notifications.requestPermissionsAsync()).granted;
+  const granted = (await Notifications.requestPermissionsAsync()).granted;
+  if (granted) void scheduleNudges();
+  return granted;
 }
 
 async function post(title: string, body: string, data: Record<string, string>) {
   if (!(await Notifications.getPermissionsAsync()).granted) return;
-  await Notifications.scheduleNotificationAsync({ content: { title, body, data, sound: 'default' }, trigger: null });
+  // Posted on the high-importance channel so it shows as a heads-up banner, not silently in the shade.
+  await Notifications.scheduleNotificationAsync({ content: { title, body, data, sound: 'default' }, trigger: Platform.OS === 'android' ? { channelId: 'default' } : null });
 }
 
 // ponytail: local notifications fire while Android keeps Neru's process and connection alive in the background
@@ -72,8 +76,20 @@ export function startNotifications() {
     for (const t of doneTeams) void post(t.title, t.failed ? 'The team stopped with a problem. Open it to see what happened.' : 'Your team finished working.', { teamId: t.id });
   });
 
+  // Check-ins: planned again whenever Neru is back on screen (so they only come after quiet days) and when the
+  // setting or the name they use changes.
+  void scheduleNudges();
+  const appState = AppState.addEventListener('change', s => s === 'active' && void scheduleNudges());
+  let profile = `${getState().settings.nudges}|${getState().settings.name}`;
+  const stopProfile = subscribe(() => {
+    const now = `${getState().settings.nudges}|${getState().settings.name}`;
+    if (now !== profile) void scheduleNudges();
+    profile = now;
+  });
+
   const open = (data: Record<string, unknown> | undefined) => {
-    if (typeof data?.chatId === 'string') router.navigate(`/chat/${data.chatId}`);
+    if (data?.checkin) router.navigate('/');
+    else if (typeof data?.chatId === 'string') router.navigate(`/chat/${data.chatId}`);
     else if (typeof data?.sessionId === 'string') router.navigate(`/desktop/${data.sessionId}`);
     else if (typeof data?.teamId === 'string') router.navigate(`/team/${data.teamId}`);
   };
@@ -81,5 +97,5 @@ export function startNotifications() {
   // A tap that launched Neru from a closed state.
   void Notifications.getLastNotificationResponseAsync().then(r => r && open(r.notification.request.content.data));
 
-  return () => (stopChats(), stopRemote(), tap.remove());
+  return () => (stopChats(), stopRemote(), stopProfile(), appState.remove(), tap.remove());
 }

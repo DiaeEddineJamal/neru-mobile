@@ -2,7 +2,7 @@
   "expo": {
     "name": "Neru",
     "slug": "neru",
-    "version": "0.11.0",
+    "version": "0.12.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "neru",
@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 4
+      "versionCode": 5
     },
     "web": {
       "output": "static",
@@ -79,6 +79,15 @@
         }
       ],
       "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": false,
+          "savePhotosPermission": "Neru saves the images you choose to your gallery.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": ["photo"]
+        }
+      ],
       "./plugins/with-local-ai"
     ],
     "experiments": {
@@ -86,7 +95,7 @@
       "reactCompiler": true
     },
     "extra": {
-      "huggingFaceClientId": ""
+      "huggingFaceClientId": "a7f843fc-505b-479a-8840-f1449ef606c3"
     }
   }
 }

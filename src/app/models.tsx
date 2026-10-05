@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Linking, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView, type KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 
 import { Icon } from '@/components/Icon';
 import { localModels, sizeLabel, type LocalModel } from '@/local/catalog';
 import { configForLocal, saveLocalConfig } from '@/local/config';
-import { account, openLicense, signIn, signInAvailable, signOut } from '@/local/huggingface';
+import { account, openHub, openLicense, saveToken, signIn, signInAvailable, signOut } from '@/local/huggingface';
 import { deviceMemoryGB, downloadModel, fitsMemory, GatedError, pauseDownload, refreshDownloads, removeModel, useDownloads } from '@/local/models';
 import { localAvailable, unloadLocal } from '@/local/runtime';
 import { chooseModel, updateSettings, useStore } from '@/store';
@@ -28,6 +29,10 @@ export default function Models() {
   const [hfUser, setHfUser] = useState<string | null>(null);
   const [configModel, setConfigModel] = useState<LocalModel | null>(null);
   const [filter, setFilter] = useState('all');
+  const [token, setToken] = useState('');
+  const [tokenError, setTokenError] = useState('');
+  const [savingToken, setSavingToken] = useState(false);
+  const page = useRef<KeyboardAwareScrollViewRef>(null);
   const run = (p: Promise<unknown>) => p.catch(e => toast.show({ title: 'On-device models', description: String(e?.message ?? e) }));
   useEffect(() => { void refreshDownloads().catch(() => {}); void account().then(setHfUser); }, []);
   // Gated models, as in Edge Gallery: sign in with Hugging Face when asked, accept the license when asked,
@@ -38,7 +43,8 @@ export default function Models() {
       catch (e) {
         if (!(e instanceof GatedError) || step >= 2) throw e;
         if (e.status === 401) {
-          if (!signInAvailable) throw e;
+          // No sign-in app in this build: the token field below is the way in.
+          if (!signInAvailable) { page.current?.scrollToEnd({ animated: true }); throw e; }
           await signIn();
           setHfUser(await account());
         } else {
@@ -48,22 +54,30 @@ export default function Models() {
       }
     }
   };
-  const choose = (id: string) => { chooseModel('on-device', id); updateSettings({ onboarded: true }); toast.show({ title: 'On-device model selected', description: 'Your messages stay on this phone.' }); router.back(); };
+  // Straight into a new chat with the model, from wherever Pocket Lab was opened (Settings or the model sheet).
+  const choose = (id: string) => { chooseModel('on-device', id); updateSettings({ onboarded: true }); toast.show({ title: 'On-device model selected', description: 'Your messages stay on this phone.' }); router.dismissAll(); router.navigate('/'); };
+  const addToken = async () => {
+    setSavingToken(true);
+    setTokenError('');
+    try { setHfUser(await saveToken(token)); setToken(''); toast.show({ title: 'Hugging Face token saved', description: 'Gated models download with your account now.' }); }
+    catch (e) { setTokenError(e instanceof Error ? e.message : String(e)); }
+    finally { setSavingToken(false); }
+  };
   const remove = async (m: LocalModel) => {
     const ok = await confirm({ title: `Remove ${m.name}?`, message: `This frees ${sizeLabel(m.bytes)} on your phone. Your conversations stay, and you can download the model again any time.`, action: 'Remove download', destructive: true });
     if (!ok) return;
     await run((async () => { await unloadLocal(); await removeModel(m.id); if (selected.providerId === 'on-device' && selected.model === m.id) chooseModel('on-device', ''); toast.show({ title: `${m.name} removed` }); })());
   };
   return (
-    <><ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+    <><KeyboardAwareScrollView ref={page} bottomOffset={96} style={{ backgroundColor: c.bg }} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
       <View style={{ gap: 8 }}>
         <Icon name="sparkles" size={28} color={c.sage} />
         <Text style={[s.title, { color: c.text }]}>Big ideas. Pocket-sized.</Text>
-        <Text style={[s.body, { color: c.secondary }]}>Welcome to Pocket Lab. Download once, then run models offline. Explore all 10 models in Google AI Edge Gallery’s catalog.</Text>
+        <Text style={[s.body, { color: c.secondary }]}>Welcome to Pocket Lab. Download once, then run models offline: every model in Google AI Edge Gallery, plus open models for coding and everyday chat that need no account.</Text>
         <Text style={[s.caption, { color: c.muted }]}>{deviceMemoryGB ? `${deviceMemoryGB.toFixed(1)} GB device memory · ` : ''}Text, documents and photos with Gemma 4 and Gemma 3n · No API key for chat</Text>
         {!localAvailable ? <Text style={[s.body, { color: c.danger }]}>Available in the Neru Android build with LiteRT-LM. On-device inference is unavailable in Expo Go, the web app and iOS.</Text> : null}
       </View>
-      <SegmentedTabs items={[{ value: 'all', label: 'All 10' }, { value: 'chat', label: 'Chat' }, { value: 'tools', label: 'Tools' }, { value: 'segmenter', label: 'Vision' }]} value={filter} onChange={setFilter} />
+      <SegmentedTabs items={[{ value: 'all', label: `All ${localModels.length}` }, { value: 'chat', label: 'Chat' }, { value: 'tools', label: 'Tools' }, { value: 'segmenter', label: 'Vision' }]} value={filter} onChange={setFilter} />
       {localModels.filter(m => filter === 'all' || m.kind === filter).map(m => {
         const d = downloads[m.id];
         const phase = d?.phase ?? 'available';
@@ -76,6 +90,7 @@ export default function Models() {
             <View style={s.row}><Text style={[s.name, { color: c.text }]}>{m.name}</Text>{ready ? <AnimatedBadge status="done" label={current ? 'Selected' : 'Downloaded'} /> : null}</View>
             <Text style={[s.caption, { color: c.sage }]}>{sizeLabel(m.bytes)}{m.memory ? ` · ${m.memory} GB RAM recommended` : ''} · {m.kind === 'segmenter' ? 'Photo selection' : m.kind === 'tools' ? 'Function calling' : 'Chat'}</Text>
             <Text style={[s.body, { color: c.secondary }]}>{m.description}</Text>
+            {m.gated && !ready ? <Text style={[s.caption, { color: c.muted }]}>{hfUser ? 'License on Hugging Face · accept it once when asked' : 'Needs a Hugging Face account · add your token below'}</Text> : null}
             {!compatible ? <Text style={[s.caption, { color: c.danger }]}>This model exceeds Google’s memory recommendation for this phone.</Text> : null}
             {busy || phase === 'paused' ? <View style={{ gap: 8 }}><View style={[s.track, { backgroundColor: c.surface3 }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round((d?.progress ?? 0) * 100) }}><View style={{ width: `${(d?.progress ?? 0) * 100}%`, height: 4, backgroundColor: c.moss }} /></View><Text style={[s.caption, { color: c.muted }]}>{phase === 'verifying' ? 'Checking the download…' : d?.note && phase === 'downloading' ? `${d.note} · ${Math.round((d?.progress ?? 0) * 100)}%` : `${phase === 'paused' ? 'Paused · ' : ''}${Math.round((d?.progress ?? 0) * 100)}%`}</Text></View> : null}
             {d?.error ? <Text style={[s.caption, { color: c.danger }]}>{d.error}</Text> : null}
@@ -83,19 +98,25 @@ export default function Models() {
               : phase === 'downloading' ? <ActionButton title="Pause download" variant="secondary" onPress={() => run(pauseDownload(m.id))} />
               : <ActionButton title={phase === 'verifying' ? 'Checking download' : phase === 'paused' ? 'Resume download' : `Download · ${sizeLabel(m.bytes)}`} icon="download" loading={phase === 'verifying'} disabled={!localAvailable || !compatible || Object.values(downloads).some(d => d.phase === 'downloading' || d.phase === 'verifying')} variant="secondary" onPress={() => run(get(m))} />}
             <ActionButton title="Model configuration" variant="secondary" disabled={streaming} onPress={() => setConfigModel(m)} />
-            <ActionButton title="Model details and terms" variant="ghost" onPress={() => run(Linking.openURL(m.url ? 'https://developers.google.com/edge/mediapipe/solutions/vision/interactive_segmenter' : `https://huggingface.co/${m.repo}`))} />
+            <ActionButton title="Model details and terms" variant="ghost" onPress={() => run(m.url ? Linking.openURL('https://developers.google.com/edge/mediapipe/solutions/vision/interactive_segmenter') : openLicense(m.repo))} />
           </View>
         );
       })}
-      {/* Hugging Face only comes up when a model asks for its license; once signed in, the account can be signed out here. */}
-      {hfUser ? (
-        <View style={[s.card, { backgroundColor: c.surface2, borderColor: c.border }]}>
-          <Text style={[s.name, { color: c.text }]}>Hugging Face</Text>
-          <Text style={[s.body, { color: c.secondary }]}>Signed in as {hfUser}. Models with a license, like the Gemma 3 family, download with this account.</Text>
+      {/* Gemma 3, Gemma 3n and FunctionGemma need a Hugging Face account that accepted their license. */}
+      <View style={[s.card, { backgroundColor: c.surface2, borderColor: c.border }]}>
+        <Text style={[s.name, { color: c.text }]}>Hugging Face</Text>
+        {hfUser ? <>
+          <Text style={[s.body, { color: c.secondary }]}>Signed in as {hfUser}. Models with a license, like Gemma 3 and Gemma 3n, download with this account.</Text>
           <ActionButton title="Sign out" variant="ghost" onPress={() => run(signOut().then(() => { setHfUser(null); toast.show({ title: 'Signed out of Hugging Face' }); }))} />
-        </View>
-      ) : null}
-    </ScrollView>{configModel ? <ModelConfig key={configModel.id} model={configModel} onClose={() => setConfigModel(null)} /> : null}</>
+        </> : <>
+          <Text style={[s.body, { color: c.secondary }]}>Gemma 3, Gemma 3n and FunctionGemma ask you to accept Google’s license first. Create an access token with Read access on Hugging Face and paste it here. It stays in this phone’s secure storage.</Text>
+          {signInAvailable ? <ActionButton title="Sign in with Hugging Face" onPress={() => run(signIn().then(account).then(setHfUser))} /> : null}
+          <TextField label="Access token" value={token} onChangeText={t => (setToken(t), setTokenError(''))} placeholder="hf_…" autoCapitalize="none" autoCorrect={false} secureTextEntry error={tokenError} />
+          <ActionButton title="Save token" loading={savingToken} disabled={!token.trim()} onPress={() => void addToken()} />
+          <ActionButton title="Create a token on Hugging Face" variant="ghost" onPress={() => run(openHub('settings/tokens/new?tokenType=read'))} />
+        </>}
+      </View>
+    </KeyboardAwareScrollView>{configModel ? <ModelConfig key={configModel.id} model={configModel} onClose={() => setConfigModel(null)} /> : null}</>
   );
 }
 

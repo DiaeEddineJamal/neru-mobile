@@ -6,9 +6,9 @@
 // Escape key and body scroll lock (the Modal covers both). The drag handle is the
 // whole header, not only the 6px pill, so it is a usable touch target.
 import { type ReactNode, useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -92,13 +92,14 @@ export function BottomSheet({ open, onClose, title, children, maxHeight }: Props
                 ) : null}
               </View>
             </GestureDetector>
-            <ScrollView
+            <KeyboardAwareScrollView
+              bottomOffset={24}
               style={s.body}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 + insets.bottom }}
               keyboardShouldPersistTaps="handled"
             >
               {children}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Animated.View>
         </KeyboardAvoidingView>
       </GestureHandlerRootView>

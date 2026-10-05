@@ -26,7 +26,7 @@ type State = {
   sessions: RemoteSession[];
   views: Record<string, SessionView>;
   teams: TeamTaskSummary[];
-  teamViews: Record<string, TeamTask & { live: Record<string, { text: string; steps: string[] }> }>;
+  teamViews: Record<string, TeamTask & { live: Record<string, { text: string; steps: string[]; drawing?: boolean }> }>;
   error: string | null;
 };
 
@@ -93,7 +93,7 @@ function onTeam(e: TeamEvent) {
     case 'member':
       return patch({ members: view.members.some(m => m.handle === e.member.handle) ? view.members.map(m => (m.handle === e.member.handle ? e.member : m)) : [...view.members, e.member] });
     case 'live':
-      return patch({ live: { ...view.live, [e.handle]: { text: e.text, steps: e.steps } } });
+      return patch({ live: { ...view.live, [e.handle]: { text: e.text, steps: e.steps, drawing: e.drawing } } });
     case 'post':
     case 'setup': {
       const post: TeamPost = e.post;
@@ -196,6 +196,13 @@ export const stopTeam = (id: string) => call('stop_team', { id });
 
 export const listTeamAgents = () => call<TeamAgent[]>('list_team_agents');
 export const listAgentModels = (kind: string) => call<AgentModel[]>('list_agent_models', { kind });
+/** Changes a member's model or reasoning effort on the desktop; the member event updates the open view. */
+export const updateTeamMember = (id: string, handle: string, change: { model?: string; effort?: string }) => call<TeamTask>('update_team_member', { id, handle, ...change });
+/** A generated image from a team post, as a data URI. */
+export async function teamImage(id: string, name: string) {
+  const image = await call<{ mime: string; base64: string }>('team_image', { id, name });
+  return `data:${image.mime};base64,${image.base64}`;
+}
 /** Starts a team task on the desktop with `text` as its first message, and puts it in the Team list. */
 export async function createTeamTask(args: RemoteCommands['create_team_task']['args']) {
   const task = await call<TeamTask>('create_team_task', args);

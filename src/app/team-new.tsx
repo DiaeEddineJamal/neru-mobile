@@ -3,7 +3,8 @@
 import { haptic } from '@/haptics';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { Icon } from '@/components/Icon';
 import { createTeamTask, listAgentModels, listTeamAgents, useRemote } from '@/remote/store';
@@ -113,7 +114,7 @@ export default function NewTeamTask() {
 
   return (
     <>
-      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 48 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <KeyboardAwareScrollView bottomOffset={96} style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
         <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.secondary, lineHeight: 22 }}>The agents share one thread and work in the project you choose on your computer.</Text>
 
         <Text style={[s.section, { color: c.muted }]}>AGENTS</Text>
@@ -175,7 +176,7 @@ export default function NewTeamTask() {
           style={[s.prompt, { backgroundColor: c.prompt, borderColor: c.border, color: c.text }]}
         />
         <ActionButton title="Start task" icon="team" loading={starting} disabled={!text.trim() || !picked.length || !agents} onPress={start} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <SelectSheet
         open={sheet === 'project'}

@@ -1,6 +1,7 @@
 // Sign in with Hugging Face, the way Google AI Edge Gallery does it: an in-app browser, PKCE (no client secret
 // in the app), and the narrow `gated-repos` scope, which can only read public gated repos whose license the
-// user accepted. The access token lives in secure storage and is only sent to huggingface.co.
+// user accepted. Without an OAuth app in this build, an access token pasted in Pocket Lab does the same job.
+// Either token lives in secure storage and is only sent to huggingface.co.
 import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -42,15 +43,36 @@ export async function signIn(): Promise<void> {
   await SecureStore.setItemAsync(KEY, body.access_token);
 }
 
-/** The signed-in Hugging Face username, or null when signed out or the session expired. */
+// whoami-v2 answers for both sign-in (OAuth) tokens and access tokens pasted from huggingface.co/settings/tokens.
+const whoami = async (token: string) => {
+  const res = await fetch('https://huggingface.co/api/whoami-v2', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+  if (!res) return { status: 0 as const };
+  if (!res.ok) return { status: res.status };
+  const me = (await res.json()) as { name?: string; fullname?: string };
+  return { status: 200, name: me.name ?? me.fullname ?? 'Signed in' };
+};
+
+/** The signed-in Hugging Face username, or null when signed out or the token stopped working. */
 export async function account(): Promise<string | null> {
   const token = await savedToken();
   if (!token) return null;
-  const res = await fetch('https://huggingface.co/oauth/userinfo', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
-  if (!res?.ok) return null;
-  const me = (await res.json()) as { preferred_username?: string; name?: string };
-  return me.preferred_username ?? me.name ?? 'Signed in';
+  const me = await whoami(token);
+  // Offline is not signed out: keep showing the saved account.
+  return me.status === 200 ? me.name! : me.status === 0 ? 'Saved token' : null;
 }
 
-/** Opens the model's page so its license can be accepted, and resolves when the browser closes. */
-export const openLicense = (repo: string) => WebBrowser.openBrowserAsync(`https://huggingface.co/${repo}`);
+/** Checks an access token with Hugging Face, then keeps it in secure storage. Returns the username. */
+export async function saveToken(raw: string): Promise<string> {
+  const token = raw.trim();
+  if (!/^hf_\w{20,}$/.test(token)) throw new Error('Hugging Face tokens start with hf_. Copy the whole token and try again.');
+  const me = await whoami(token);
+  if (me.status === 0) throw new Error('Hugging Face could not be reached. Check your connection and try again.');
+  if (me.status !== 200) throw new Error('Hugging Face did not accept this token. Create a new one with Read access and try again.');
+  await SecureStore.setItemAsync(KEY, token);
+  return me.name!;
+}
+
+/** Opens a page on huggingface.co in the in-app browser (where you are signed in), resolving when it closes. */
+export const openHub = (path: string) => WebBrowser.openBrowserAsync(`https://huggingface.co/${path}`);
+/** Opens the model's page so its license can be accepted. */
+export const openLicense = (repo: string) => openHub(repo);

@@ -12,7 +12,7 @@
 ![React Native](https://img.shields.io/badge/React%20Native-0.8x-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%C2%B7%20iOS-64806a)
-![Version](https://img.shields.io/badge/version-0.11.0-54745b)
+![Version](https://img.shields.io/badge/version-0.12.0-54745b)
 
 <img src="assets/images/whats-new-parchment.png" width="640" alt="Neru in a landscape of layered paper hills on warm parchment" />
 
@@ -28,7 +28,7 @@
 | 🖥️ **Your desktop, in your pocket** | Pair with Neru on your computer by scanning a QR code. Follow Code sessions, read diffs, approve changes and reply, end-to-end encrypted. |
 | 👥 **Team, remotely** | Follow a desktop Team thread, @-mention the models on your PC and start new tasks from your phone. |
 | 🌍 **Across networks** | Turn on *Connect over the internet* on the desktop to reach it from mobile data or another Wi-Fi network. |
-| 🎙️ **Just say it** | Dictate with the platform speech recognizer while a sound-reactive glow listens with you. |
+| 🎙️ **Just say it** | Dictate with the platform speech recognizer while Claude-style voice stripes move with you. |
 | 🧪 **Pocket Lab** | Download every model in Google AI Edge Gallery and run them **offline** on Android with LiteRT-LM. Gemma 4 and Gemma 3n understand the photos you attach. |
 | ✨ **Magic Touch** | Tap an object in a photo to cut it out, entirely on-device. |
 | 🔔 **Notifications** | Hear when a reply is ready, a desktop session needs you or finishes, or a team is done, even with Neru in the background. |
@@ -64,7 +64,7 @@ npx expo-doctor           # check dependencies and config
 src/
 ├── app/            # Expo Router screens (every file is a route)
 │   └── (drawer)/   # chats, desktop sessions, teams
-├── components/     # screen-level building blocks (chat view, drawer, voice glow)
+├── components/     # screen-level building blocks (chat view, drawer, composer)
 ├── ui/             # design-system primitives (bubbles, tabs, sheets, skeletons…)
 ├── remote/         # encrypted pairing and protocol client for the desktop app
 ├── local/          # on-device models (Pocket Lab)
@@ -79,6 +79,11 @@ plugins/            # Expo config plugins
 ## Privacy
 
 API keys stay on the device in secure storage. Desktop pairing uses an end-to-end encrypted channel; the internet relay only sees ciphertext. Pocket Lab and Magic Touch run fully offline.
+
+## Credits
+
+- [Grid Reveal](https://www.rareui.com/components/gridreveal) by [Rare UI](https://www.rareui.com): the loading animation for images generated in Team, ported to React Native.
+- [thinking-orbs](https://www.npmjs.com/package/thinking-orbs) by Jakub Antalik (MIT): the thinking orbs.
 
 ## Changelog
 

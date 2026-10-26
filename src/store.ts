@@ -1,14 +1,20 @@
 import { File } from 'expo-file-system';
 import { useSyncExternalStore } from 'react';
 
-import { deleteChatRow, deleteMessage, getApiKey, kvGetSync, kvSet, loadChats, saveChat, saveMessage, setApiKey, type Attachment, type Chat, type Message } from '@/db';
+import { deleteChatRow, deleteMessage, getApiKey, kvGetSync, kvSet, loadChats, saveChat, saveMessage, setApiKey, type Attachment, type Chat, type Message, type ToolStep } from '@/db';
+import { clearComposerDraft } from '@/drafts';
 import { nextModel, reason, recordSuccess, shouldSwitch } from '@/llm/fallback';
-import { listModels, streamChat, type ChatMessage, type ProviderConfig } from '@/llm/stream';
+import { listModels, streamChat, type ChatMessage, type ProviderConfig, type ToolCall } from '@/llm/stream';
+import { beforeCall, localToolPrompt, mayRun, parseArgs, parseLocalCalls, rejectsTools, rememberNoTools, toolSpecs, toolSupport } from '@/llm/tools';
+import { chatTools, runTool } from '@/mcp/store';
 import { localModel } from '@/local/catalog';
 import { streamLocal } from '@/local/runtime';
-import { formatForModel, providerPresets } from '@/shared/providerCatalog';
+import { formatForModel, privacyAllows, privacyLabels, privacyOf, providerPresets, type PrivacyRule } from '@/shared/providerCatalog';
+import { redact } from '@/shared/redact';
+import { setLanguage, t as tx, voiceLocale, type LanguageSetting } from '@/i18n';
+import { estimateTokens, recordUsage } from '@/usage';
 
-export type { Attachment, Chat, Message };
+export type { Attachment, Chat, Message, ToolStep };
 
 export type Settings = {
   providerId: string;
@@ -33,6 +39,14 @@ export type Settings = {
   gender?: 'male' | 'female';
   /** Occasional, gentle check-in notifications. */
   nudges: boolean;
+  /** Which providers chats may use, by what their terms say they do with prompts. */
+  privacy: PrivacyRule;
+  /** Hide keys, tokens and passwords in messages before they go to a cloud model. */
+  redact: boolean;
+  /** The interface language; 'system' follows the phone. */
+  language?: LanguageSetting;
+  /** Let chats use connector tools (MCP). */
+  connectors?: boolean;
 };
 
 type State = {
@@ -46,7 +60,7 @@ type State = {
   modelSheet: boolean;
 };
 
-const defaults: Settings = { providerId: 'nvidia', model: '', baseUrls: {}, fallback: true, haptics: true, theme: 'system', voiceLang: 'en-US', onboarded: false, seenVersion: '', nudges: true };
+const defaults: Settings = { providerId: 'nvidia', model: '', baseUrls: {}, fallback: true, haptics: true, theme: 'system', voiceLang: 'en-US', onboarded: false, seenVersion: '', nudges: true, privacy: 'any', redact: true };
 const saved = kvGetSync('settings');
 
 let state: State = {
@@ -83,6 +97,16 @@ export function updateSettings(patch: Partial<Settings>) {
   kvSet('settings', JSON.stringify(state.settings));
 }
 
+/**
+ * Switches the interface language; dictation follows it. Returns true when the layout direction changes
+ * (Arabic and Darija are right to left), which Android applies after a restart.
+ */
+export function changeLanguage(language: LanguageSetting): boolean {
+  const flips = setLanguage(language);
+  updateSettings({ language, voiceLang: voiceLocale() });
+  return flips;
+}
+
 export const presetOf = (providerId: string) => providerPresets.find(p => p.id === providerId);
 const KEYLESS = new Set(['local', 'ollama']);
 
@@ -100,7 +124,7 @@ export async function configFor(providerId: string, model: string): Promise<Prov
   return { providerId, baseUrl, model, apiKey: (await getApiKey(providerId)) ?? '', format: formatForModel(providerId, model, preset?.format ?? 'openai-chat', baseUrl) };
 }
 
-export const modelLabel = (s: Settings) => s.providerId === 'on-device' ? (localModel(s.model)?.name ?? 'On-device model') : s.model || presetOf(s.providerId)?.name || 'Choose a model';
+export const modelLabel = (s: Settings) => s.providerId === 'on-device' ? (localModel(s.model)?.name ?? tx('On-device model')) : s.model || presetOf(s.providerId)?.name || tx('Choose a model');
 
 /** Chat models each saved key can call, fetched on demand for the model picker. */
 const modelLists = new Map<string, string[]>();
@@ -136,7 +160,7 @@ export function send(chatId: string | null, text: string, attachments: Attachmen
   let id = chatId;
   if (!id) {
     id = uid();
-    const title = text ? (text.length > 40 ? text.slice(0, 40).trimEnd() + '…' : text) : (attachments[0]?.name ?? 'New chat');
+    const title = text ? (text.length > 40 ? text.slice(0, 40).trimEnd() + '…' : text) : (attachments[0]?.name ?? tx('New chat'));
     const chat: Chat = { id, title, starred: false, updatedAt: Date.now(), messages: [] };
     set({ chats: [chat, ...state.chats] });
     saveChat(chat);
@@ -157,6 +181,31 @@ export function retry(chatId: string) {
   }
   void streamReply(chatId);
 }
+
+/** Why the privacy setting keeps a provider out, or null when it may be used. */
+export function privacyBlock(providerId: string, rule: PrivacyRule = state.settings.privacy): string | null {
+  const privacy = privacyOf(providerId);
+  if (privacyAllows(rule, privacy)) return null;
+  const name = providerId === 'on-device' ? tx('This model') : (presetOf(providerId)?.name ?? providerId);
+  const label = tx(privacyLabels[privacy].label).toLowerCase();
+  return rule === 'local'
+    ? tx('{name}: {label}. Your privacy setting allows only models on your own devices, so pick another model or change it in Settings.', { name, label })
+    : tx('{name}: {label}. Your privacy setting allows only providers that do not train on your data, so pick another model or change it in Settings.', { name, label });
+}
+
+/** Hides secrets in what goes to a cloud model; returns the messages and how many were hidden. */
+function hideSecrets(messages: ChatMessage[]) {
+  let hidden = 0;
+  const out = messages.map(m => {
+    const r = redact(m.text);
+    hidden += r.secrets.length;
+    return r.secrets.length ? { ...m, text: r.text } : m;
+  });
+  return { messages: out, hidden };
+}
+
+/** Model requests one reply may make while it uses tools. */
+const MAX_TOOL_ROUNDS = 8;
 
 /** Reply error when no model is picked yet; the chat offers the model picker instead of Try again. */
 export const NO_MODEL = 'Pick a model first. Add a free key and choose one of its models.';
@@ -208,10 +257,11 @@ async function streamReply(chatId: string) {
   // Deltas arrive in tiny pieces; render them in ~30 fps batches instead of one update each.
   let text = '';
   let reasoning = '';
+  let steps: ToolStep[] = [];
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   const flush = () => {
     flushTimer = null;
-    updateChat(chatId, c => ({ ...c, messages: c.messages.map(m => (m.id === reply.id ? { ...m, text, reasoning: reasoning || undefined } : m)) }));
+    updateChat(chatId, c => ({ ...c, messages: c.messages.map(m => (m.id === reply.id ? { ...m, text, reasoning: reasoning || undefined, tools: steps.length ? steps : undefined } : m)) }));
   };
   const schedule = () => (flushTimer ??= setTimeout(flush, 33));
 
@@ -219,6 +269,10 @@ async function streamReply(chatId: string) {
   const messages = await history({ ...chat, messages: chat.messages.filter(m => m.id !== reply.id) });
   let { providerId, model } = state.settings;
   let error: string | undefined;
+  const rule = state.settings.privacy;
+  // Tools from the phone's connectors, and the paired desktop's while it is connected.
+  const connected = state.settings.connectors === false ? [] : chatTools();
+  let toolsRan = false;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const config = await configFor(providerId, model);
@@ -226,24 +280,96 @@ async function streamReply(chatId: string) {
       error = NO_MODEL;
       break;
     }
+    const blocked = privacyBlock(providerId, rule);
+    if (blocked) {
+      error = blocked;
+      break;
+    }
+    const local = providerId === 'on-device';
+    // Only models that can call tools get them: a small model handed a tool list loses its context to it.
+    let tools = toolSupport(providerId, model) === 'no' ? [] : connected;
+    if (connected.length && !tools.length) set({ notice: { chatId, text: tx('{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.', { model: local ? (localModel(model)?.name ?? model) : model }) } });
     try {
-      if (providerId === 'on-device') {
-        await streamLocal(model, messages, d => ((text += d), schedule()), controller.signal, phase => set({ notice: { chatId, text: phase === 'loading' ? 'Loading the model on your phone…' : 'Running on this phone · Offline' } }), r => ((reasoning += r), schedule()));
-      } else {
-        await streamChat(config, messages, { onDelta: d => ((text += d), schedule()), onReasoning: r => ((reasoning += r), schedule()) }, controller.signal);
-        void recordSuccess(config);
+      // The conversation for this reply; tool calls and their results are added to it round by round.
+      const working: ChatMessage[] = [...messages];
+      if (local && tools.length) working[0] = { ...working[0], text: `${working[0].text}\n\n${localToolPrompt(tools)}` };
+      let shown = '';
+      for (let round = 0; round < MAX_TOOL_ROUNDS && !controller.signal.aborted; round++) {
+        let said = '';
+        // Tokens as the provider reports them; some repeat running totals, so keep the largest.
+        let used = { input: 0, output: 0 };
+        const onUsage = (i: number, o: number) => (used = { input: Math.max(used.input, i), output: Math.max(used.output, o) });
+        const onDelta = (d: string) => {
+          said += d;
+          text = shown + (local && tools.length ? beforeCall(said) : said);
+          schedule();
+        };
+        let calls: ToolCall[];
+        if (local) {
+          await streamLocal(model, working, onDelta, controller.signal, phase => set({ notice: { chatId, text: phase === 'loading' ? tx('Loading the model on your phone…') : tx('Running on this phone · Offline') } }), r => ((reasoning += r), schedule()));
+          const parsed = parseLocalCalls(said);
+          calls = tools.length ? parsed.calls : [];
+          text = shown + (calls.length ? parsed.visible : said);
+        } else {
+          const sent = state.settings.redact ? hideSecrets(working) : { messages: working, hidden: 0 };
+          if (sent.hidden && round === 0) set({ notice: { chatId, text: sent.hidden === 1 ? tx('Hid 1 secret (keys, tokens or passwords) before sending.') : tx('Hid {n} secrets (keys, tokens or passwords) before sending.', { n: sent.hidden }) } });
+          const ask = () => streamChat(config, sent.messages, { onDelta, onReasoning: r => ((reasoning += r), schedule()), onUsage }, controller.signal, toolSpecs(tools));
+          try {
+            calls = await ask();
+          } catch (err) {
+            // The model or its host takes no tool definitions: remember that, and ask again without them.
+            const message = err instanceof Error ? err.message : String(err);
+            if (!tools.length || said || controller.signal.aborted || !rejectsTools(message)) throw err;
+            rememberNoTools(providerId, model);
+            tools = [];
+            set({ notice: { chatId, text: tx('{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.', { model }) } });
+            calls = await ask();
+          }
+          void recordSuccess(config);
+        }
+        recordUsage(providerId, model, used.input || estimateTokens(working.map(m => m.text).join(' ')), used.output || estimateTokens(said));
+        if (!calls.length || controller.signal.aborted) break;
+        working.push({ role: 'assistant', text: said, toolCalls: local ? undefined : calls });
+        for (const call of calls) {
+          const tool = tools.find(t => t.fn === call.name);
+          const args = parseArgs(call.args);
+          let result: string;
+          const index = steps.length;
+          steps = [...steps, { name: tool?.title ?? call.name, label: tool?.label ?? tx('Unknown tool'), status: 'running' }];
+          schedule();
+          const mark = (status: ToolStep['status']) => ((steps = steps.map((s, i) => (i === index ? { ...s, status } : s))), schedule());
+          if (!tool) {
+            result = `There is no tool named ${call.name}.`;
+            mark('failed');
+          } else if (!(await mayRun(chatId, tool, args, controller.signal))) {
+            result = 'The user declined to run this tool. Do not try it again unless they ask.';
+            mark('denied');
+          } else {
+            try {
+              result = await runTool(tool, args);
+              mark('done');
+            } catch (err) {
+              result = `The tool failed: ${err instanceof Error ? err.message : String(err)}`;
+              mark('failed');
+            }
+          }
+          toolsRan = true;
+          if (local) working.push({ role: 'user', text: `<tool_result name="${call.name}">\n${result.slice(0, 6000)}\n</tool_result>` });
+          else working.push({ role: 'tool', toolCallId: call.id, name: call.name, text: result });
+        }
+        shown = text ? `${text}\n\n` : '';
       }
       error = undefined;
       break;
     } catch (err) {
       if (controller.signal.aborted) break;
       error = err instanceof Error ? err.message : String(err);
-      // Switch only before any text arrived, so a reply is never stitched from two models.
-      if (providerId === 'on-device' || text || !state.settings.fallback || !shouldSwitch(error)) break;
-      const keys = await Promise.all(state.keyed.filter(p => presetOf(p)?.freeLimit || p === providerId).map(p => configFor(p, '')));
+      // Switch only before any text arrived or any tool ran, so a reply is never stitched from two models.
+      if (local || text || toolsRan || !state.settings.fallback || !shouldSwitch(error)) break;
+      const keys = await Promise.all(state.keyed.filter(p => (presetOf(p)?.freeLimit || p === providerId) && !privacyBlock(p, rule)).map(p => configFor(p, '')));
       const next = await nextModel(config, error, keys);
       if (!next) break;
-      set({ notice: { chatId, text: `${model} ${reason(error)}. Switched to ${next.model}.` } });
+      set({ notice: { chatId, text: tx('{model} {reason}. Switched to {next}.', { model, reason: tx(reason(error)), next: next.model }) } });
       ({ providerId, model } = next);
       updateSettings({ providerId, model });
     }
@@ -255,7 +381,8 @@ async function streamReply(chatId: string) {
     set({ streamingChat: null });
   }
   if (!chatOf(chatId)) return; // deleted while answering
-  const final: Message = { ...reply, text, reasoning: reasoning || undefined, model, error: text ? undefined : error };
+  const ended = steps.map(s => (s.status === 'running' ? { ...s, status: 'failed' as const } : s));
+  const final: Message = { ...reply, text, reasoning: reasoning || undefined, model, error: text ? undefined : error, tools: ended.length ? ended : undefined };
   updateChat(chatId, c => ({ ...c, updatedAt: Date.now(), messages: c.messages.map(m => (m.id === reply.id ? final : m)) }));
   saveMessage(chatId, final);
   saveChat(chatOf(chatId)!);
@@ -304,6 +431,7 @@ export function toggleStar(id: string) {
 
 export function deleteChat(id: string) {
   if (state.streamingChat === id) stop();
+  clearComposerDraft(id);
   set({ chats: state.chats.filter(c => c.id !== id) });
   deleteChatRow(id);
 }
@@ -330,6 +458,8 @@ export function editMessage(chatId: string, messageId: string, text: string) {
 
 export function deleteAllChats() {
   stop();
+  state.chats.forEach(c => clearComposerDraft(c.id));
+  clearComposerDraft('new');
   state.chats.forEach(c => deleteChatRow(c.id));
   set({ chats: [] });
 }

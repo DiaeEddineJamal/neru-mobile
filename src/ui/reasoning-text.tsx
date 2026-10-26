@@ -11,9 +11,9 @@ import { font, fs, useColors } from '@/theme';
 import { AsciiLineLoader } from '@/ui/loader';
 import { EASE_OUT, SPRING_SWAP } from '@/ui/motion';
 import { ShimmerChar, useShimmerClock } from '@/ui/thinking-shimmer';
+import { t } from '@/i18n';
 
 const PHRASES = ['Thinking', 'Reading the context', 'Connecting the details', 'Forming a response'];
-const LONGEST = PHRASES.reduce((a, b) => (b.length > a.length ? b : a));
 const STAGGER = 25; // ms, CASCADE_STAGGER
 const LINE = 20;
 const label = { fontFamily: font.medium, fontSize: fs.sm, lineHeight: LINE };
@@ -62,7 +62,8 @@ export function ReasoningText({ text, streaming }: { text: string; streaming: bo
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
-  const phrase = PHRASES[index];
+  const phrase = t(PHRASES[index]);
+  const longest = PHRASES.map(p => t(p)).reduce((a, b) => (b.length > a.length ? b : a));
 
   useEffect(() => {
     if (!streaming) return;
@@ -90,7 +91,7 @@ export function ReasoningText({ text, streaming }: { text: string; streaming: bo
         onPress={() => setOpen(o => !o)}
         hitSlop={14}
         accessibilityRole="button"
-        accessibilityLabel={streaming ? phrase : 'Reasoning'}
+        accessibilityLabel={streaming ? phrase : t('Reasoning')}
         accessibilityState={{ expanded: open }}
         accessibilityLiveRegion="polite"
         style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}
@@ -99,14 +100,14 @@ export function ReasoningText({ text, streaming }: { text: string; streaming: bo
           <>
             <AsciiLineLoader size={14} speed={0.8} />
             <View style={{ overflow: 'hidden' }}>
-              <Text style={[label, { opacity: 0 }]}>{LONGEST}…</Text>
+              <Text style={[label, { opacity: 0 }]}>{longest}…</Text>
               <LayoutAnimationConfig skipEntering>
                 <Phrase key={phrase} phrase={phrase} />
               </LayoutAnimationConfig>
             </View>
           </>
         ) : (
-          <Text style={[label, { color: c.muted }]}>Reasoning</Text>
+          <Text style={[label, { color: c.muted }]}>{t('Reasoning')}</Text>
         )}
         <Animated.View style={chevron}>
           <Icon name="chevronDown" size={14} color={c.muted} />

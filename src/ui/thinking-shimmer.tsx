@@ -7,6 +7,7 @@ import Animated, { type EntryExitAnimationFunction, Easing, interpolateColor, ty
 
 import { font, fs, useColors } from '@/theme';
 import { ThinkingOrb, type OrbState } from '@/ui/thinking-orb';
+import { t as tx } from '@/i18n';
 
 /** Sweep clock, 0→1 linear per `duration` seconds. Reduced motion holds the gradient still, as beUI's CSS does. */
 export function useShimmerClock(duration: number) {
@@ -41,7 +42,7 @@ export function ShimmerChar({ char, clock, u, style, entering, exiting }: {
 }
 
 /** The desktop's agent status line: a thinking orb for what the model is doing, and its shimmering label. */
-export function ThinkingShimmer({ label = 'Thinking', state = 'working' }: { label?: string; state?: OrbState }) {
+export function ThinkingShimmer({ label = tx('Thinking'), state = 'working' }: { label?: string; state?: OrbState }) {
   const clock = useShimmerClock(1.8);
   const chars = Array.from(`${label}…`);
   return (

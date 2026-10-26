@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
+import { t } from '@/i18n';
 
 const CLIENT_ID = (Constants.expoConfig?.extra?.huggingFaceClientId as string | undefined) ?? '';
 const REDIRECT = 'neru://hf-auth';
@@ -23,23 +24,23 @@ export const savedToken = () => SecureStore.getItemAsync(KEY);
 export const signOut = () => SecureStore.deleteItemAsync(KEY);
 
 export async function signIn(): Promise<void> {
-  if (!signInAvailable) throw new Error('Hugging Face sign-in is not set up in this build yet.');
+  if (!signInAvailable) throw new Error(t('Hugging Face sign-in is not set up in this build yet.'));
   const verifier = base64url(btoa(String.fromCharCode(...Crypto.getRandomBytes(32))));
   const challenge = base64url(await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, { encoding: Crypto.CryptoEncoding.BASE64 }));
   const state = Crypto.randomUUID();
   const url = `https://huggingface.co/oauth/authorize?${form({ client_id: CLIENT_ID, redirect_uri: REDIRECT, response_type: 'code', scope: 'openid profile gated-repos', state, code_challenge: challenge, code_challenge_method: 'S256' })}`;
   const result = await WebBrowser.openAuthSessionAsync(url, REDIRECT);
-  if (result.type !== 'success') throw new Error('Sign-in was cancelled.');
+  if (result.type !== 'success') throw new Error(t('Sign-in was cancelled.'));
   const back = query(result.url);
-  if (back.state !== state) throw new Error('Sign-in could not be verified. Please try again.');
-  if (!back.code) throw new Error(back.error_description || 'Hugging Face did not complete the sign-in.');
+  if (back.state !== state) throw new Error(t('Sign-in could not be verified. Please try again.'));
+  if (!back.code) throw new Error(back.error_description || t('Hugging Face did not complete the sign-in.'));
   const res = await fetch('https://huggingface.co/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: form({ grant_type: 'authorization_code', code: back.code, redirect_uri: REDIRECT, client_id: CLIENT_ID, code_verifier: verifier }),
   });
   const body = (await res.json().catch(() => ({}))) as { access_token?: string; error_description?: string };
-  if (!res.ok || !body.access_token) throw new Error(body.error_description || `Sign-in failed (${res.status}).`);
+  if (!res.ok || !body.access_token) throw new Error(body.error_description || t('Sign-in failed ({status}).', { status: res.status }));
   await SecureStore.setItemAsync(KEY, body.access_token);
 }
 
@@ -49,7 +50,7 @@ const whoami = async (token: string) => {
   if (!res) return { status: 0 as const };
   if (!res.ok) return { status: res.status };
   const me = (await res.json()) as { name?: string; fullname?: string };
-  return { status: 200, name: me.name ?? me.fullname ?? 'Signed in' };
+  return { status: 200, name: me.name ?? me.fullname ?? t('Signed in') };
 };
 
 /** The signed-in Hugging Face username, or null when signed out or the token stopped working. */
@@ -58,16 +59,16 @@ export async function account(): Promise<string | null> {
   if (!token) return null;
   const me = await whoami(token);
   // Offline is not signed out: keep showing the saved account.
-  return me.status === 200 ? me.name! : me.status === 0 ? 'Saved token' : null;
+  return me.status === 200 ? me.name! : me.status === 0 ? t('Saved token') : null;
 }
 
 /** Checks an access token with Hugging Face, then keeps it in secure storage. Returns the username. */
 export async function saveToken(raw: string): Promise<string> {
   const token = raw.trim();
-  if (!/^hf_\w{20,}$/.test(token)) throw new Error('Hugging Face tokens start with hf_. Copy the whole token and try again.');
+  if (!/^hf_\w{20,}$/.test(token)) throw new Error(t('Hugging Face tokens start with hf_. Copy the whole token and try again.'));
   const me = await whoami(token);
-  if (me.status === 0) throw new Error('Hugging Face could not be reached. Check your connection and try again.');
-  if (me.status !== 200) throw new Error('Hugging Face did not accept this token. Create a new one with Read access and try again.');
+  if (me.status === 0) throw new Error(t('Hugging Face could not be reached. Check your connection and try again.'));
+  if (me.status !== 200) throw new Error(t('Hugging Face did not accept this token. Create a new one with Read access and try again.'));
   await SecureStore.setItemAsync(KEY, token);
   return me.name!;
 }

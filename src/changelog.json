@@ -1,5 +1,48 @@
 [
   {
+    "version": "0.14.0",
+    "date": "2026-10-26",
+    "title": "Tools in your pocket",
+    "summary": "Connect Jira, Gmail, GitHub and more to any model, hand your desktop work from your phone, and update Neru in one tap.",
+    "items": [
+      {
+        "icon": "wrench",
+        "title": "Connectors",
+        "text": "Add Jira, Gmail, GitHub, Notion and more in Settings → Connectors. Chats use them with cloud models and with Pocket Lab models marked MCP tools, and anything that changes something waits for your OK."
+      },
+      {
+        "icon": "checklist",
+        "title": "Tasks for your desktop",
+        "text": "Say or type a Code task, add a photo, pick the project, and run it now or queue it for tonight when free plans reset. While you were away sums up what your sessions did, and you can deny a change with a reason Neru remembers."
+      },
+      {
+        "icon": "lab",
+        "title": "Pocket Lab, sorted",
+        "text": "Models are grouped by who makes them, with their logos, and colored labels show Chat, Vision, Thinking and MCP tools at a glance. Liquid AI’s LFM models join the lineup."
+      },
+      {
+        "icon": "shield",
+        "title": "Private by default",
+        "text": "Keys, tokens and passwords are hidden before a message leaves your phone, each provider shows what it does with your prompts, and Settings shows what your free chats would have cost on a paid model."
+      },
+      {
+        "icon": "language",
+        "title": "Your language",
+        "text": "Neru speaks French, Arabic and Moroccan Darija. Pick one in Settings."
+      },
+      {
+        "icon": "palette",
+        "title": "Your colors, on the icon",
+        "text": "The app icon and the mascot take on your theme’s color."
+      },
+      {
+        "icon": "download",
+        "title": "Updates in one tap",
+        "text": "New versions download inside Neru and open the installer right away, with no browser trip."
+      }
+    ]
+  },
+  {
     "version": "0.13.0",
     "date": "2026-10-05",
     "title": "Your colors",

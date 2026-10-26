@@ -1,5 +1,17 @@
 # Neru mobile changelog
 
+## 0.14.0 · 2026-10-26
+
+**Tools in your pocket.** Connect Jira, Gmail, GitHub and more to any model, hand your desktop work from your phone, and update Neru in one tap.
+
+- **Connectors.** Add Jira, Gmail, GitHub, Notion and more in Settings → Connectors. Chats use them with cloud models and with Pocket Lab models marked MCP tools, and anything that changes something waits for your OK.
+- **Tasks for your desktop.** Say or type a Code task, add a photo, pick the project, and run it now or queue it for tonight when free plans reset. While you were away sums up what your sessions did, and you can deny a change with a reason Neru remembers.
+- **Pocket Lab, sorted.** Models are grouped by who makes them, with their logos, and colored labels show Chat, Vision, Thinking and MCP tools at a glance. Liquid AI’s LFM models join the lineup.
+- **Private by default.** Keys, tokens and passwords are hidden before a message leaves your phone, each provider shows what it does with your prompts, and Settings shows what your free chats would have cost on a paid model.
+- **Your language.** Neru speaks French, Arabic and Moroccan Darija. Pick one in Settings.
+- **Your colors, on the icon.** The app icon and the mascot take on your theme’s color.
+- **Updates in one tap.** New versions download inside Neru and open the installer right away, with no browser trip.
+
 ## 0.13.0 · 2026-10-05
 
 **Your colors.** Seven themes that suit moss green, a walkthrough of every control, and Pocket Lab downloads that keep going when you leave the app.

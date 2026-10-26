@@ -7,6 +7,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { font, useColors } from '@/theme';
 import { EASE_IN_OUT } from '@/ui/motion';
+import { t } from '@/i18n';
 
 // Reduced motion keeps a calm opacity pulse ([1, 0.4, 1] over 1.4s) and drops every transform.
 const pulse = () => withRepeat(withSequence(withTiming(0.4, { duration: 700, easing: EASE_IN_OUT }), withTiming(1, { duration: 700, easing: EASE_IN_OUT })), -1);
@@ -27,7 +28,7 @@ export function Loader({ size = 32, color }: { size?: number; color?: string }) 
   const mid = size / 2;
   const tint = color ?? c.text;
   return (
-    <Animated.View accessibilityRole="progressbar" accessibilityLabel="Loading" style={[{ width: size, height: size }, spin]}>
+    <Animated.View accessibilityRole="progressbar" accessibilityLabel={t('Loading')} style={[{ width: size, height: size }, spin]}>
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Circle cx={mid} cy={mid} r={r} fill="none" stroke={tint} strokeOpacity={0.2} strokeWidth={stroke} />
         <Path d={`M ${mid} ${mid - r} A ${r} ${r} 0 0 1 ${mid + r} ${mid}`} fill="none" stroke={tint} strokeWidth={stroke} strokeLinecap="round" />
@@ -50,7 +51,7 @@ export function AsciiLineLoader({ size = 14, speed = 0.8, color }: { size?: numb
     return () => clearInterval(id);
   }, [reduce, speed]);
   return (
-    <View accessibilityRole="progressbar" accessibilityLabel="Reasoning" style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    <View accessibilityRole="progressbar" accessibilityLabel={t('Reasoning')} style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Text style={{ fontFamily: font.mono, fontSize: size, lineHeight: size * 1.15, color: color ?? c.muted }}>{LINE_FRAMES[frame]}</Text>
     </View>
   );

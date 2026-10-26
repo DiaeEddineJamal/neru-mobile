@@ -32,6 +32,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { haptic } from '@/haptics';
 import { font, useColors } from '@/theme';
 import { EASE_IN_OUT, EASE_OUT, SPRING_PANEL, SPRING_SWAP } from '@/ui/motion';
+import { t } from '@/i18n';
 
 type Status = 'idle' | 'pulling' | 'ready' | 'refreshing';
 type PullStatus = Exclude<Status, 'refreshing'>;
@@ -162,7 +163,7 @@ export function PullToRefreshScrollView({ refreshing, onRefresh, ref, style, onS
             accessibilityLiveRegion="polite"
             style={[s.label, { color: c.muted }]}
           >
-            {LABELS[status]}
+            {t(LABELS[status])}
           </Animated.Text>
         </View>
       </Animated.View>

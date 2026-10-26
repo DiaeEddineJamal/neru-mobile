@@ -6,6 +6,7 @@ import { useSharedValue } from 'react-native-reanimated';
 
 import { getState } from '@/store';
 import { notice } from '@/ui/confirm';
+import { t } from '@/i18n';
 
 export type VoiceState = 'idle' | 'listening' | 'processing';
 
@@ -39,12 +40,12 @@ export function useVoice(onText: (text: string) => void, currentText: string) {
     live.current = false;
     setState('idle');
     setLevel(0);
-    if (e.error !== 'aborted' && e.error !== 'no-speech') void notice({ title: 'Dictation stopped', message: e.message || 'Speech recognition stopped. Try again in a moment.', icon: 'mic' });
+    if (e.error !== 'aborted' && e.error !== 'no-speech') void notice({ title: t('Dictation stopped'), message: e.message || t('Speech recognition stopped. Try again in a moment.'), icon: 'mic' });
   });
 
   const start = async () => {
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!perm.granted) return void notice({ title: 'Allow the microphone', message: 'Neru needs the microphone and speech recognition to turn your voice into text. You can allow them in your phone’s settings.', icon: 'mic', settings: true });
+    if (!perm.granted) return void notice({ title: t('Allow the microphone'), message: t('Neru needs the microphone and speech recognition to turn your voice into text. You can allow them in your phone’s settings.'), icon: 'mic', settings: true });
     base.current = currentText;
     finals.current = '';
     interim.current = '';

@@ -6,6 +6,7 @@ import type { ChatMessage } from '@/llm/stream';
 import { installedUri } from '@/local/models';
 import { configForLocal } from '@/local/config';
 import { localModel, type LocalConfig } from '@/local/catalog';
+import { t } from '@/i18n';
 
 const MAX_IMAGES = 4;
 
@@ -19,13 +20,27 @@ type LocalNative = {
 const native = requireOptionalNativeModule<LocalNative>('NeruLocalAi');
 export const localAvailable = Platform.OS === 'android' && !!native;
 
+// One engine at a time: a phone's memory holds one model.
+let running = Promise.resolve();
+
 export async function streamLocal(model: string, messages: ChatMessage[], onDelta: (text: string) => void, signal: AbortSignal, onStatus: (phase: string) => void, onReasoning: (text: string) => void) {
-  if (!native || !localAvailable) throw new Error('On-device models need the Neru Android build with LiteRT-LM.');
+  const previous = running;
+  let release!: () => void;
+  running = new Promise<void>(resolve => { release = resolve; });
+  await previous;
+  try { if (!signal.aborted) await runLocal(model, messages, onDelta, signal, onStatus, onReasoning); }
+  finally { release(); }
+}
+
+async function runLocal(model: string, messages: ChatMessage[], onDelta: (text: string) => void, signal: AbortSignal, onStatus: (phase: string) => void, onReasoning: (text: string) => void) {
+  if (!native || !localAvailable) throw new Error(t('On-device models need the Neru Android build with LiteRT-LM.'));
   const info = localModel(model);
-  if (!info?.vision && messages.some(m => m.images?.length)) throw new Error(`${info?.name ?? 'This model'} reads text and documents only. For photos, choose Gemma 4 or Gemma 3n on this phone, or a cloud model.`);
+  if (!info) throw new Error(t('Unknown model.'));
+  if (!info?.vision && messages.some(m => m.images?.length)) throw new Error(t('{model} reads text and documents only. For photos, choose Gemma 4 or Gemma 3n on this phone, or a cloud model.', { model: info?.name ?? t('This model') }));
+  if (info.freshEngine) await native.unload();
   if (signal.aborted) return;
   // Each image costs a few hundred context tokens: send only the newest ones whose files still exist.
-  let budget = MAX_IMAGES;
+  let budget = info.maxImages ?? MAX_IMAGES;
   const sent = messages.map(m => ({ role: m.role, text: m.text, images: [] as string[] })).reverse();
   for (const [i, m] of [...messages].reverse().entries()) {
     const uris = (m.images ?? []).map(img => img.uri).filter((u): u is string => !!u && new File(u).exists);

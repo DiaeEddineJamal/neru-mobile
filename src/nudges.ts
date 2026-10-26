@@ -8,24 +8,25 @@ import { Platform } from 'react-native';
 import { kvGetSync, kvSet } from '@/db';
 import { getRemote } from '@/remote/store';
 import { getState } from '@/store';
+import { t } from '@/i18n';
 
 const COUNT = 3; // queued ahead, so a phone left alone for a week still hears from Neru twice or three times
 const CHANNEL = 'checkins';
 
 type Note = (first: string, paired: boolean) => { title: string; body: string } | null;
 const notes: Note[] = [
-  f => ({ title: f ? `Hey ${f}` : 'Hey there', body: 'Got something on your mind? Let’s think it through together.' }),
-  () => ({ title: 'Today’s plan', body: 'Tell me what’s on your list and I’ll help you sort it into easy steps.' }),
-  () => ({ title: 'Stuck on something?', body: 'Two minutes with Neru might untangle it.' }),
-  f => ({ title: 'Big idea brewing?', body: `Let’s sketch it out${f ? `, ${f}` : ''}. Rough notes are fine.` }),
-  () => ({ title: 'Curious about something?', body: 'Ask me anything, from quick facts to deep dives.' }),
-  () => ({ title: 'Need the right words?', body: 'I can help with that email or message, in your tone.' }),
-  () => ({ title: 'Week ahead', body: 'Planning a few days out? Let’s break it into something doable.' }),
-  f => ({ title: f ? `Quick one, ${f}` : 'Quick one', body: 'That question you’ve been meaning to ask? Now’s a good time.' }),
-  () => ({ title: 'Learn something small', body: 'Pick a topic and I’ll explain it in five minutes.' }),
-  (_, paired) => (paired ? { title: 'Your projects', body: 'Check in on your desktop sessions, right from your phone.' } : null),
-  () => ({ title: 'No signal? No problem', body: 'Models you download in Pocket Lab answer offline.' }),
-  f => ({ title: 'Clear your head', body: `Dump everything on your mind here${f ? `, ${f}` : ''}, and I’ll help you make sense of it.` }),
+  f => ({ title: f ? t('Hey {name}', { name: f }) : t('Hey there'), body: t('Got something on your mind? Let’s think it through together.') }),
+  () => ({ title: t('Today’s plan'), body: t('Tell me what’s on your list and I’ll help you sort it into easy steps.') }),
+  () => ({ title: t('Stuck on something?'), body: t('Two minutes with Neru might untangle it.') }),
+  f => ({ title: t('Big idea brewing?'), body: f ? t('Let’s sketch it out, {name}. Rough notes are fine.', { name: f }) : t('Let’s sketch it out. Rough notes are fine.') }),
+  () => ({ title: t('Curious about something?'), body: t('Ask me anything, from quick facts to deep dives.') }),
+  () => ({ title: t('Need the right words?'), body: t('I can help with that email or message, in your tone.') }),
+  () => ({ title: t('Week ahead'), body: t('Planning a few days out? Let’s break it into something doable.') }),
+  f => ({ title: f ? t('Quick one, {name}', { name: f }) : t('Quick one'), body: t('That question you’ve been meaning to ask? Now’s a good time.') }),
+  () => ({ title: t('Learn something small'), body: t('Pick a topic and I’ll explain it in five minutes.') }),
+  (_, paired) => (paired ? { title: t('Your projects'), body: t('Check in on your desktop sessions, right from your phone.') } : null),
+  () => ({ title: t('No signal? No problem'), body: t('Models you download in Pocket Lab answer offline.') }),
+  f => ({ title: t('Clear your head'), body: f ? t('Dump everything on your mind here, {name}, and I’ll help you make sense of it.', { name: f }) : t('Dump everything on your mind here, and I’ll help you make sense of it.') }),
 ];
 
 /** The next line indexes to use: a shuffled deck, dealt in order and reshuffled once it runs out. */
@@ -47,7 +48,7 @@ export async function scheduleNudges() {
   await Promise.all(Array.from({ length: COUNT }, (_, i) => Notifications.cancelScheduledNotificationAsync(`checkin-${i}`).catch(() => {})));
   const { settings } = getState();
   if (!settings.nudges || !(await Notifications.getPermissionsAsync()).granted) return;
-  if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync(CHANNEL, { name: 'Check-ins', importance: Notifications.AndroidImportance.DEFAULT });
+  if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync(CHANNEL, { name: t('Check-ins'), importance: Notifications.AndroidImportance.DEFAULT });
   const first = settings.name?.trim().split(/\s+/)[0] ?? '';
   const paired = !!getRemote().desktopName;
   const picks = deal(COUNT, i => notes[i](first, paired) !== null);

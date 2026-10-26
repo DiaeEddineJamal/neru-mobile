@@ -26,6 +26,7 @@ import { font, fs, useColors } from '@/theme';
 import { AgentDisclosure, DisclosureChevron } from '@/ui/agent-disclosure';
 import { EASE_OUT, SPRING_LAYOUT } from '@/ui/motion';
 import { ThinkingShimmer } from '@/ui/thinking-shimmer';
+import { t } from '@/i18n';
 
 export type ActivityItem = { id: string; label: string; status: 'running' | 'done' | 'failed'; detail?: string };
 
@@ -60,7 +61,7 @@ function ActiveDot({ color }: { color: string }) {
 function Row({ item }: { item: ActivityItem }) {
   const c = useColors();
   return (
-    <View accessible accessibilityLabel={`${item.label}${item.detail ? `, ${item.detail}` : ''}, ${item.status}`} style={{ minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+    <View accessible accessibilityLabel={`${item.label}${item.detail ? `, ${item.detail}` : ''}, ${t(item.status === 'running' ? 'Running' : item.status === 'done' ? 'Completed' : 'Failed')}`} style={{ minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
       <View style={{ width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
         {item.status === 'running' ? <ActiveDot color={c.text} /> : <Icon name={item.status === 'done' ? 'check' : 'close'} size={16} color={item.status === 'done' ? c.muted : c.danger} />}
       </View>
@@ -101,7 +102,7 @@ export function AgentActivity({ items }: { items: ActivityItem[] }) {
     setOpen(!open);
     if (!open) requestAnimationFrame(() => viewport.current?.scrollTo({ y: 0, animated: false }));
   };
-  const summary = `Completed ${items.length} ${items.length === 1 ? 'step' : 'steps'}`;
+  const summary = items.length === 1 ? t('Completed 1 step') : t('Completed {n} steps', { n: items.length });
   const fade = (edge: 'top' | 'bottom') => (
     <LinearGradient
       pointerEvents="none"
@@ -114,7 +115,7 @@ export function AgentActivity({ items }: { items: ActivityItem[] }) {
     <View accessibilityState={{ busy: working }} style={{ width: '100%' }}>
       {working ? (
         <View accessibilityRole="summary" style={{ minHeight: 28, justifyContent: 'center' }}>
-          <ThinkingShimmer label="Working through it" />
+          <ThinkingShimmer label={t('Working through it')} />
         </View>
       ) : (
         <Pressable

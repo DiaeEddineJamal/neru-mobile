@@ -1,13 +1,23 @@
-// Streaming chat for the three API formats Neru speaks, ported from app/src-tauri/src/providers.rs
-// (chat only: the phone sends no tools).
+// Streaming chat for the three API formats Neru speaks, ported from app/src-tauri/src/providers.rs, with tool calls
+// for connectors (MCP): a reply may ask for tools, and the next request carries their results.
 import { fetch } from 'expo/fetch';
 
+import { CallCollector, cleanSchema, parseEvent, type StreamHandlers, type ToolCall } from '@/llm/parse';
 import type { ApiFormat } from '@/shared/providerCatalog';
+
+export { CallCollector, cleanSchema, parseEvent, type StreamHandlers, type ToolCall };
 
 export type ProviderConfig = { providerId: string; baseUrl: string; apiKey: string; model: string; format: ApiFormat };
 export type ChatImage = { mime: string; base64: string; /** Local file, for on-device models. */ uri?: string };
-export type ChatMessage = { role: 'system' | 'user' | 'assistant'; text: string; images?: ChatImage[] };
-export type StreamHandlers = { onDelta: (text: string) => void; onReasoning?: (text: string) => void };
+/**
+ * One turn. An assistant turn may carry `toolCalls`; a `tool` turn answers one of them by `toolCallId`.
+ */
+export type ChatMessage =
+  | { role: 'system' | 'user'; text: string; images?: ChatImage[] }
+  | { role: 'assistant'; text: string; images?: ChatImage[]; toolCalls?: ToolCall[] }
+  | { role: 'tool'; text: string; toolCallId: string; name: string; images?: undefined };
+/** A tool offered to the model: JSON Schema parameters. */
+export type ToolSpec = { name: string; description: string; parameters: Record<string, unknown> };
 
 /** No first byte by then: the model counts as not answering, which lets fallback move on. */
 const FIRST_BYTE_MS = 45_000;
@@ -26,75 +36,85 @@ export function headers(c: ProviderConfig): Record<string, string> {
 const system = (messages: ChatMessage[]) => messages.filter(m => m.role === 'system').map(m => m.text).join('\n\n');
 const turns = (messages: ChatMessage[]) => messages.filter(m => m.role !== 'system');
 
-function openaiChat(c: ProviderConfig, messages: ChatMessage[]) {
+function openaiChat(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]) {
   return {
     model: modelId(c),
     stream: true,
-    messages: messages.map(m =>
-      m.images?.length
+    stream_options: { include_usage: true },
+    ...(tools.length ? { tools: tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: cleanSchema(t.parameters) } })) } : {}),
+    messages: messages.map(m => {
+      if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.text };
+      if (m.role === 'assistant' && m.toolCalls?.length)
+        return { role: 'assistant', content: m.text || null, tool_calls: m.toolCalls.map(t => ({ id: t.id, type: 'function', function: { name: t.name, arguments: t.args || '{}' } })) };
+      return m.images?.length
         ? { role: m.role, content: [{ type: 'text', text: m.text }, ...m.images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.base64}` } }))] }
-        : { role: m.role, content: m.text },
-    ),
+        : { role: m.role, content: m.text };
+    }),
   };
 }
 
-function responses(c: ProviderConfig, messages: ChatMessage[]) {
+function responses(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]) {
   return {
     model: c.model,
     instructions: system(messages),
     store: false,
     stream: true,
-    input: turns(messages).map(m => ({
-      role: m.role,
-      content: [
+    ...(tools.length ? { tools: tools.map(t => ({ type: 'function', name: t.name, description: t.description, parameters: cleanSchema(t.parameters) })) } : {}),
+    input: turns(messages).flatMap((m): Record<string, unknown>[] => {
+      if (m.role === 'tool') return [{ type: 'function_call_output', call_id: m.toolCallId, output: m.text }];
+      const content = [
         { type: m.role === 'user' ? 'input_text' : 'output_text', text: m.text },
         ...(m.images ?? []).map(i => ({ type: 'input_image', image_url: `data:${i.mime};base64,${i.base64}` })),
-      ],
-    })),
+      ];
+      const said = m.text || m.images?.length ? [{ role: m.role, content }] : [];
+      const calls = m.role === 'assistant' ? (m.toolCalls ?? []).map(t => ({ type: 'function_call', call_id: t.id, name: t.name, arguments: t.args || '{}' })) : [];
+      return [...said, ...calls];
+    }),
   };
 }
 
-function anthropic(c: ProviderConfig, messages: ChatMessage[]) {
+function anthropic(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]) {
   const sys = system(messages);
+  const out: { role: 'user' | 'assistant'; content: Record<string, unknown>[] }[] = [];
+  for (const m of turns(messages)) {
+    const parse = (args: string) => {
+      try {
+        return JSON.parse(args || '{}');
+      } catch {
+        return {};
+      }
+    };
+    const content: Record<string, unknown>[] =
+      m.role === 'tool'
+        ? [{ type: 'tool_result', tool_use_id: m.toolCallId, content: m.text }]
+        : [
+            ...(m.images ?? []).map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.base64 } })),
+            ...(m.text ? [{ type: 'text', text: m.text }] : []),
+            ...(m.role === 'assistant' ? (m.toolCalls ?? []).map(t => ({ type: 'tool_use', id: t.id, name: t.name, input: parse(t.args) })) : []),
+          ];
+    const role = m.role === 'assistant' ? 'assistant' : 'user';
+    // Tool results go back as one user turn, right after the assistant turn that asked for them.
+    const last = out.at(-1);
+    if (last && last.role === role && role === 'user' && m.role === 'tool') last.content.push(...content);
+    else out.push({ role, content: content.length ? content : [{ type: 'text', text: '(empty)' }] });
+  }
   return {
     model: c.model,
     max_tokens: /claude-3-5/.test(c.model) ? 8192 : /claude-3-/.test(c.model) ? 4096 : 16000,
     stream: true,
     ...(sys ? { system: sys } : {}),
-    messages: turns(messages).map(m => ({
-      role: m.role,
-      content: [
-        ...(m.images ?? []).map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.base64 } })),
-        { type: 'text', text: m.text },
-      ],
-    })),
+    ...(tools.length ? { tools: tools.map(t => ({ name: t.name, description: t.description, input_schema: cleanSchema(t.parameters) })) } : {}),
+    messages: out,
   };
 }
 
-/** Pulls text out of one SSE `data:` payload for the given format. */
-export function parseEvent(format: ApiFormat, data: string, h: StreamHandlers) {
-  if (data === '[DONE]') return;
-  const e = JSON.parse(data);
-  if (e.error) throw new Error(`stream failed: ${typeof e.error === 'string' ? e.error : (e.error.message ?? JSON.stringify(e.error))}`);
-  if (format === 'anthropic') {
-    if (e.type === 'content_block_delta' && e.delta?.type === 'text_delta') h.onDelta(e.delta.text);
-    if (e.type === 'content_block_delta' && e.delta?.type === 'thinking_delta') h.onReasoning?.(e.delta.thinking);
-  } else if (format === 'openai-responses') {
-    if (e.type === 'response.output_text.delta') h.onDelta(e.delta);
-    if (e.type === 'response.reasoning_summary_text.delta' || e.type === 'response.reasoning_text.delta') h.onReasoning?.(e.delta);
-    if (e.type === 'response.failed') throw new Error(`stream failed: ${e.response?.error?.message ?? 'response failed'}`);
-  } else {
-    const d = e.choices?.[0]?.delta;
-    if (d?.content) h.onDelta(d.content);
-    const r = d?.reasoning_content ?? d?.reasoning;
-    if (typeof r === 'string' && r) h.onReasoning?.(r);
-  }
-}
-
-/** Streams one reply. Errors read like the desktop's ("HTTP 429: ..."), so fallback.ts classifies them the same way. */
-export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: StreamHandlers, signal: AbortSignal) {
+/**
+ * Streams one reply and returns the tools it asked for. Errors read like the desktop's ("HTTP 429: ..."), so
+ * fallback.ts classifies them the same way.
+ */
+export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: StreamHandlers, signal: AbortSignal, tools: ToolSpec[] = []): Promise<ToolCall[]> {
   const [path, body] =
-    c.format === 'anthropic' ? ['/messages', anthropic(c, messages)] : c.format === 'openai-responses' ? ['/responses', responses(c, messages)] : ['/chat/completions', openaiChat(c, messages)];
+    c.format === 'anthropic' ? ['/messages', anthropic(c, messages, tools)] : c.format === 'openai-responses' ? ['/responses', responses(c, messages, tools)] : ['/chat/completions', openaiChat(c, messages, tools)];
 
   const timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(), FIRST_BYTE_MS);
@@ -118,6 +138,7 @@ export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: 
     throw new Error(`HTTP ${res.status}: ${String(msg).slice(0, 400)}`);
   }
 
+  const calls = new CallCollector();
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -134,9 +155,10 @@ export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: 
     while ((nl = buffer.indexOf('\n')) >= 0) {
       const line = buffer.slice(0, nl).trim();
       buffer = buffer.slice(nl + 1);
-      if (line.startsWith('data:')) parseEvent(c.format, line.slice(5).trim(), h);
+      if (line.startsWith('data:')) parseEvent(c.format, line.slice(5).trim(), h, calls);
     }
   }
+  return calls.done();
 }
 
 /** The chat models a key can call, same filter as the desktop's models.rs `is_chat_id`. */

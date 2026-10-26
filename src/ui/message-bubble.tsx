@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { font, fs, useColors } from '@/theme';
+import { t } from '@/i18n';
 
 // iMessage/Telegram send: the bubble launches from the composer, scaling out of its tail corner,
 // text and all, and settles with one soft overshoot.
@@ -49,7 +50,7 @@ export function MessageBubble({ text, onLongPress, animateIn = true }: Props) {
         disabled={!onLongPress}
         accessibilityRole="text"
         accessibilityLabel={text}
-        accessibilityHint={onLongPress ? 'Long-press for options' : undefined}
+        accessibilityHint={onLongPress ? t('Long-press for options') : undefined}
         style={({ pressed }) => [s.bubble, { backgroundColor: c.bubble }, pressed && { transform: [{ scale: 0.97 }] }]}
       >
         <Text style={{ fontFamily: font.sans, fontSize: fs.base, lineHeight: 22, color: c.bubbleText }}>{text}</Text>

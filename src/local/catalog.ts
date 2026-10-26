@@ -1,6 +1,7 @@
 // One catalog and capability map for desktop and mobile Pocket Lab, plus phone-only extras: open (ungated)
 // LiteRT-LM models from litert-community that download without a Hugging Face account.
 import { localModels as gallery, type LocalModel } from '@/shared/lib/pocket/catalog';
+import additions from './extra-models.json';
 
 export { modelUrl, sizeLabel, type LocalConfig, type LocalModel } from '@/shared/lib/pocket/catalog';
 
@@ -21,11 +22,24 @@ const extras: [id: string, name: string, repo: string, file: string, revision: s
 
 const defaults = { systemPrompt: 'You are Neru, a helpful assistant. Answer clearly and concisely.', maxTokens: 2048, contextTokens: 4096, topK: 40, topP: 0.95, temperature: 0.7, accelerator: 'cpu' as const, thinking: false, speculative: false };
 
-export const localModels: (LocalModel & { gated?: boolean })[] = [
-  ...gallery.map(m => ({ ...m, gated: GATED.test(m.repo) })),
+export type MobileLocalModel = LocalModel & { gated?: boolean; maxImages?: number; freshEngine?: boolean; /** Trained for tool calling, so it can use connectors (MCP). */ tools?: boolean };
+
+// Models trained for tool calling: Gemma 4 (Edge Gallery's agent models), Qwen 2.5 and 3, Phi-4-mini, Ministral 3,
+// SmolLM3 and Liquid's LFM2 text models. Gemma 3 1B, Gemma 3n, the R1 distill and the vision LFMs were not, and the
+// FunctionGemma fine-tunes only know their own fixed functions.
+const NO_TOOLS = new Set(['gemma-3n-e2b', 'gemma-3n-e4b', 'gemma-3-1b', 'deepseek-r1-distill-qwen-1-5b', 'tinygarden-270m', 'mobileactions-270m', 'lfm2.5-vl-3b', 'lfm2.5-vl-1.6b']);
+
+export const localModels: MobileLocalModel[] = [
+  ...gallery.map(m => ({ ...m, gated: GATED.test(m.repo), tools: m.kind === 'chat' && !NO_TOOLS.has(m.id) })),
   ...extras.map(([id, name, repo, file, revision, bytes, sha256, memory, description]) => ({
-    id, name, repo, file, revision, bytes, sha256, memory, description, kind: 'chat' as const, vision: false,
+    id, name, repo, file, revision, bytes, sha256, memory, description, kind: 'chat' as const, vision: false, tools: true,
     accelerators: ['cpu', 'gpu'] as ('cpu' | 'gpu')[], thinking: false, speculative: false, maxContext: 4096, defaults,
+  })),
+  ...additions.map(m => ({
+    ...m, kind: 'chat' as const, tools: !NO_TOOLS.has(m.id),
+    accelerators: ['cpu', 'gpu'] as ('cpu' | 'gpu')[],
+    speculative: false, maxContext: 4096,
+    defaults: { ...defaults, thinking: m.thinking },
   })),
 ];
 export const localModel = (id: string) => localModels.find(m => m.id === id);

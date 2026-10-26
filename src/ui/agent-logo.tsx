@@ -1,10 +1,10 @@
 // The desktop's AgentMark: an agent CLI's logo on a light rounded tile (Team.css .agent-mark), Neru's mascot for
 // its own agent, and the agent's initial on a tint for CLIs without a known logo.
-import { Image } from 'expo-image';
 import { Text, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
 import * as logos from '@/ui/agent-logos/logos';
+import { MascotImage } from '@/ui/mascot';
 import { font, useColors, useScheme } from '@/theme';
 
 const LOGOS: Record<string, string> = { claude: logos.claude, 'claude-desktop': logos.claude, codex: logos.codex, opencode: logos.opencode, gemini: logos.gemini, cursor: logos.cursor, copilot: logos.githubcopilot, vscode: logos.vscode, qwen: logos.qwen, amp: logos.amp, goose: logos.goose, kiro: logos.kiro };
@@ -15,7 +15,7 @@ export function AgentLogo({ kind, size, initial, tint }: { kind: string; size: n
   const light = useScheme() === 'light';
   const radius = size * 0.26;
   if (kind === 'neru')
-    return <Image source={require('@/assets/images/neru-mascot.png')} style={{ width: size, height: size }} contentFit="contain" accessibilityIgnoresInvertColors />;
+    return <MascotImage style={{ width: size, height: size }} contentFit="contain" accessibilityIgnoresInvertColors />;
   const logo = LOGOS[kind];
   if (!logo) {
     const ink = tint ?? c.secondary;

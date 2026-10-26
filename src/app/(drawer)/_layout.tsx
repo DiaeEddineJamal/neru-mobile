@@ -5,6 +5,7 @@ import { Keyboard, useWindowDimensions } from 'react-native';
 
 import { AppTour, type DrawerControl } from '@/components/AppTour';
 import { DrawerContent } from '@/components/DrawerContent';
+import { t } from '@/i18n';
 import { IconButton } from '@/components/Icon';
 import { ModelButton } from '@/components/ModelButton';
 import { ModelSheet } from '@/components/ModelSheet';
@@ -35,8 +36,8 @@ export default function DrawerLayout() {
         headerStyle: { backgroundColor: c.bg },
         headerTitleAlign: 'center',
         headerTitleStyle: { fontFamily: font.semibold, color: c.text },
-        headerLeft: () => <TourTarget name="menu" style={{ marginLeft: 4 }}><IconButton name="menu" label="Open chats" color={c.text} onPress={() => (Keyboard.dismiss(), navigation.openDrawer())} /></TourTarget>,
-        headerRight: () => <TourTarget name="compose" style={{ marginRight: 4 }}><IconButton name="compose" label="New chat" color={c.text} onPress={() => (Keyboard.dismiss(), router.navigate('/'))} /></TourTarget>,
+        headerLeft: () => <TourTarget name="menu" style={{ marginLeft: 4 }}><IconButton name="menu" label={t('Open chats')} color={c.text} onPress={() => (Keyboard.dismiss(), navigation.openDrawer())} /></TourTarget>,
+        headerRight: () => <TourTarget name="compose" style={{ marginRight: 4 }}><IconButton name="compose" label={t('New chat')} color={c.text} onPress={() => (Keyboard.dismiss(), router.navigate('/'))} /></TourTarget>,
         headerTitle: () => <TourTarget name="model"><ModelButton /></TourTarget>,
         sceneStyle: { backgroundColor: c.bg },
       })}

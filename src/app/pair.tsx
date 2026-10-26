@@ -6,6 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { pair, unpair, useRemote } from '@/remote/store';
+import { t } from '@/i18n';
 import { font, fs, useColors } from '@/theme';
 import { AnimatedBadge } from '@/ui/animated-badge';
 import { ActionButton } from '@/ui/button-base';
@@ -33,7 +34,7 @@ export default function Pair() {
       await pair(value);
       haptic.success();
       setScanning(false);
-      toast.show({ title: 'Desktop connected', description: 'Choose Code or Team in the Desktop tab.' });
+      toast.show({ title: t('Desktop connected'), description: t('Choose Code or Team in the Desktop tab.') });
       router.back();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -41,7 +42,7 @@ export default function Pair() {
   };
 
   const scan = async () => {
-    if (!permission?.granted && !(await requestPermission()).granted) return setError('Allow camera access to scan the code, or paste it below.');
+    if (!permission?.granted && !(await requestPermission()).granted) return setError(t('Allow camera access to scan the code, or paste it below.'));
     setScanning(true);
   };
 
@@ -50,18 +51,18 @@ export default function Pair() {
       {remote.desktopName ? (
         <View style={[s.card, { backgroundColor: c.surface2, borderColor: c.border }]}>
           <Text style={{ fontFamily: font.semibold, fontSize: fs.md, color: c.text }}>{remote.desktopName}</Text>
-          <AnimatedBadge status={remote.status === 'connected' ? 'done' : remote.status === 'connecting' ? 'running' : 'failed'} label={remote.status === 'connected' ? `Connected${remote.host ? ` · ${remote.host}` : ''}` : remote.status === 'connecting' ? 'Connecting' : 'Offline'} />
+          <AnimatedBadge status={remote.status === 'connected' ? 'done' : remote.status === 'connecting' ? 'running' : 'failed'} label={remote.status === 'connected' ? `${t('Connected')}${remote.host ? ` · ${remote.host}` : ''}` : remote.status === 'connecting' ? t('Connecting') : t('Offline')} />
           {remote.status !== 'connected' ? (
             <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.secondary, lineHeight: 20 }}>
-              Keep the computer awake with Neru open. To connect from another network, enable “Connect over the internet” in desktop Settings → Phone and scan its updated pairing code.
+              {t('Keep the computer awake with Neru open. To connect from another network, enable “Connect over the internet” in desktop Settings → Phone and scan its updated pairing code.')}
             </Text>
           ) : null}
-          <ActionButton title="Unpair" variant="destructive" onPress={() => (unpair(), toast.show({ title: 'Desktop unpaired' }))} />
+          <ActionButton title={t('Unpair')} variant="destructive" onPress={() => (unpair(), toast.show({ title: t('Desktop unpaired') }))} />
         </View>
       ) : null}
 
       <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.secondary, lineHeight: 22 }}>
-        On your computer, open Neru, then Settings → Phone, and turn on pairing. Scan the code it shows.
+        {t('On your computer, open Neru, then Settings → Phone, and turn on pairing. Scan the code it shows.')}
       </Text>
 
       {scanning ? (
@@ -69,11 +70,11 @@ export default function Pair() {
           <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={r => r.data.startsWith('neru://pair') && connect(r.data)} />
         </View>
       ) : (
-        <ActionButton title="Scan the pairing code" icon="qr" onPress={scan} />
+        <ActionButton title={t('Scan the pairing code')} icon="qr" onPress={scan} />
       )}
 
-      <TextField label="Or paste the pairing text" value={code} onChangeText={setCode} placeholder="neru://pair?..." autoCapitalize="none" autoCorrect={false} error={error} />
-      <ActionButton title={connecting ? 'Connecting to desktop' : 'Pair'} loading={connecting} variant="secondary" disabled={!code.trim()} onPress={() => connect(code)} />
+      <TextField label={t('Or paste the pairing text')} value={code} onChangeText={setCode} placeholder="neru://pair?..." autoCapitalize="none" autoCorrect={false} error={error} />
+      <ActionButton title={connecting ? t('Connecting to desktop') : t('Pair')} loading={connecting} variant="secondary" disabled={!code.trim()} onPress={() => connect(code)} />
     </KeyboardAwareScrollView>
   );
 }

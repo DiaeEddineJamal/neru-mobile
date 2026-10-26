@@ -9,6 +9,7 @@ import { haptic } from '@/haptics';
 import { font, fs, useColors } from '@/theme';
 import { BottomSheet } from '@/ui/bottom-sheet';
 import { ActionButton } from '@/ui/button-base';
+import { t } from '@/i18n';
 
 type Dialog = {
   title: string;
@@ -59,12 +60,12 @@ export function DialogHost() {
             {d.action ? (
               <>
                 <ActionButton title={d.action} variant={d.destructive ? 'destructive' : 'primary'} onPress={() => close(true)} />
-                <ActionButton title="Cancel" variant="ghost" onPress={() => close(false)} />
+                <ActionButton title={t('Cancel')} variant="ghost" onPress={() => close(false)} />
               </>
             ) : (
               <>
-                {d.settings ? <ActionButton title="Open settings" onPress={() => (void Linking.openSettings(), close(true))} /> : null}
-                <ActionButton title={d.settings ? 'Not now' : 'Got it'} variant={d.settings ? 'ghost' : 'primary'} onPress={() => close(true)} />
+                {d.settings ? <ActionButton title={t('Open settings')} onPress={() => (void Linking.openSettings(), close(true))} /> : null}
+                <ActionButton title={d.settings ? t('Not now') : t('Got it')} variant={d.settings ? 'ghost' : 'primary'} onPress={() => close(true)} />
               </>
             )}
           </View>

@@ -5,6 +5,7 @@ import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { useBottomPad, useColors } from '@/theme';
+import { t } from '@/i18n';
 import { PromptInput, type PromptAttachment } from '@/ui/prompt-input';
 import { useVoice } from '@/voice';
 type ComposerProps = {
@@ -52,7 +53,7 @@ export function VoiceComposer({ value, onChangeText, onSend, placeholder, ...res
         if (listening) voice.cancel();
         onSend(text);
       }}
-      placeholder={voice.state === 'listening' ? 'Listening…' : placeholder}
+      placeholder={voice.state === 'listening' ? t('Listening…') : placeholder}
       onVoice={voice.toggle}
       listening={listening}
       voiceLevel={voice.level}

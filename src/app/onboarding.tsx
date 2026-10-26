@@ -3,7 +3,6 @@
 // permissions only in context, let people skip (Apple HIG onboarding, Material 3); thumb-zone actions
 // at the bottom (Hoober); progress always visible and reversible (Nielsen: visibility, user control).
 import { haptic } from '@/haptics';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
@@ -13,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, IconButton, type IconName } from '@/components/Icon';
 import { appVersion } from '@/components/WhatsNew';
+import { t as tx } from '@/i18n';
 import { score } from '@/llm/fallback';
 import { chooseModel, getState, presetOf, saveProviderKey, testKey, updateSettings } from '@/store';
 import { font, fs, useColors } from '@/theme';
@@ -20,6 +20,7 @@ import { ActionButton } from '@/ui/button-base';
 import { TextField } from '@/ui/input';
 import { EASE_OUT, SPRING_LAYOUT } from '@/ui/motion';
 import { RadioGroup, type RadioOption } from '@/ui/radio';
+import { MascotImage } from '@/ui/mascot';
 import { TextReveal } from '@/ui/text-reveal';
 
 type Step = 'welcome' | 'you' | 'tour' | 'path' | 'key' | 'done';
@@ -31,6 +32,7 @@ const genders: RadioOption[] = [
 ];
 
 const paths: RadioOption[] = [
+  { value: 'local', title: 'On-device models', description: 'Download a model and chat offline. Your messages stay on this phone.', icon: 'brain' },
   { value: 'free', title: 'Free models', description: 'Use a free key from NVIDIA, Google or OpenRouter. Takes about a minute.', icon: 'sparkles', badge: 'Recommended' },
   { value: 'desktop', title: 'My desktop', description: 'Pair with Neru on your computer to follow and approve its work.', icon: 'desktop' },
   { value: 'later', title: 'Just look around', description: 'Set things up later from Settings.', icon: 'compass' },
@@ -42,6 +44,9 @@ const providers: RadioOption[] = [
   { value: 'openrouter', title: 'OpenRouter', description: 'One key for many free models.' },
   { value: 'groq', title: 'Groq', description: 'Very fast replies, smaller limits.' },
 ];
+
+/** Option lists are module constants; their text is translated where they render. Provider names stay as they are. */
+const tr = (o: RadioOption, title = true): RadioOption => ({ ...o, title: title ? tx(o.title) : o.title, description: o.description && tx(o.description), badge: o.badge && tx(o.badge) });
 
 const tour: [IconName, string, string][] = [
   ['sparkles', 'Chat with free models', 'Neru switches to the next free model when one runs out, so you keep going.'],
@@ -82,7 +87,7 @@ function Mascot({ size }: { size: number }) {
   const style = useAnimatedStyle(() => ({ transform: [{ scale: breath.get() }] }));
   return (
     <Animated.View style={style}>
-      <Image source={require('@/assets/images/neru-mascot.png')} style={{ width: size, height: size }} contentFit="contain" accessibilityIgnoresInvertColors />
+      <MascotImage style={{ width: size, height: size }} contentFit="contain" accessibilityIgnoresInvertColors />
     </Animated.View>
   );
 }
@@ -131,6 +136,7 @@ export default function Onboarding() {
 
   const onPath = () => {
     if (path === 'free') return go('key');
+    if (path === 'local') return router.push('/models');
     if (path === 'desktop') return finish('/pair');
     finish();
   };
@@ -141,33 +147,33 @@ export default function Onboarding() {
         return (
           <View style={s.center}>
             <Mascot size={128} />
-            <TextReveal text="Think it through, anywhere." style={[s.display, { color: c.text }]} />
+            <TextReveal text={tx('Think it through, anywhere.')} style={[s.display, { color: c.text }]} />
             <Animated.Text entering={FadeInDown.delay(500).springify()} style={[s.lead, { color: c.secondary }]}>
-              Neru brings free AI models and your desktop coding sessions to your phone.
+              {tx('Neru brings free AI models and your desktop coding sessions to your phone.')}
             </Animated.Text>
           </View>
         );
       case 'you':
         return (
           <View style={{ gap: 20 }}>
-            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>What should Neru call you?</Text>
-            <Text style={[s.lead, { color: c.secondary, textAlign: 'left' }]}>Every model you chat with will know your name and how to address you. Change it any time in Settings.</Text>
-            <TextField label="Your name" value={name} onChangeText={setName} placeholder="First name" autoCapitalize="words" autoComplete="given-name" textContentType="givenName" returnKeyType="done" />
-            <RadioGroup options={genders} value={gender} onChange={setGender} />
+            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>{tx('What should Neru call you?')}</Text>
+            <Text style={[s.lead, { color: c.secondary, textAlign: 'left' }]}>{tx('Every model you chat with will know your name and how to address you. Change it any time in Settings.')}</Text>
+            <TextField label={tx('Your name')} value={name} onChangeText={setName} placeholder={tx('First name')} autoCapitalize="words" autoComplete="given-name" textContentType="givenName" returnKeyType="done" />
+            <RadioGroup options={genders.map(o => tr(o))} value={gender} onChange={setGender} />
           </View>
         );
       case 'tour':
         return (
           <View style={{ gap: 28 }}>
-            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>What you can do</Text>
+            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>{tx('What you can do')}</Text>
             {tour.map(([icon, title, text], i) => (
               <Animated.View key={title} entering={FadeInDown.delay(120 + i * 110).springify()} style={s.feature}>
                 <View style={[s.featureIcon, { backgroundColor: c.surface3 }]}>
                   <Icon name={icon} size={24} color={c.moss} />
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ fontFamily: font.semibold, fontSize: fs.md, color: c.text }}>{title}</Text>
-                  <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.secondary, lineHeight: 21 }}>{text}</Text>
+                  <Text style={{ fontFamily: font.semibold, fontSize: fs.md, color: c.text }}>{tx(title)}</Text>
+                  <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.secondary, lineHeight: 21 }}>{tx(text)}</Text>
                 </View>
               </Animated.View>
             ))}
@@ -176,28 +182,28 @@ export default function Onboarding() {
       case 'path':
         return (
           <View style={{ gap: 20 }}>
-            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>How do you want to start?</Text>
-            <RadioGroup options={paths} value={path} onChange={setPath} />
+            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>{tx('How do you want to start?')}</Text>
+            <RadioGroup options={paths.map(o => tr(o))} value={path} onChange={setPath} />
           </View>
         );
       case 'key':
         return (
           <View style={{ gap: 20 }}>
-            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>Pick a free provider</Text>
-            <RadioGroup options={providers} value={provider} onChange={p => (setProvider(p), setError(undefined))} />
+            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>{tx('Pick a free provider')}</Text>
+            <RadioGroup options={providers.map(o => tr(o, false))} value={provider} onChange={p => (setProvider(p), setError(undefined))} />
             <View style={[s.steps, { backgroundColor: c.surface2, borderColor: c.border }]}>
-              <Text style={{ fontFamily: font.semibold, fontSize: fs.sm, color: c.text }}>Get your {preset?.name} key</Text>
+              <Text style={{ fontFamily: font.semibold, fontSize: fs.sm, color: c.text }}>{tx('Get your {name} key', { name: preset?.name ?? '' })}</Text>
               {['Open the key page and sign in.', 'Create a key and copy it.', 'Come back and paste it below.'].map((t, i) => (
                 <View key={t} style={{ flexDirection: 'row', gap: 10 }}>
                   <Text style={[s.stepNum, { color: c.onAction, backgroundColor: c.mossAction }]}>{i + 1}</Text>
-                  <Text style={{ flex: 1, fontFamily: font.sans, fontSize: fs.sm, color: c.secondary, lineHeight: 22 }}>{t}</Text>
+                  <Text style={{ flex: 1, fontFamily: font.sans, fontSize: fs.sm, color: c.secondary, lineHeight: 22 }}>{tx(t)}</Text>
                 </View>
               ))}
-              {preset?.keyUrl ? <ActionButton title="Open the key page" variant="secondary" icon="link" onPress={() => Linking.openURL(preset.keyUrl!)} /> : null}
+              {preset?.keyUrl ? <ActionButton title={tx('Open the key page')} variant="secondary" icon="link" onPress={() => Linking.openURL(preset.keyUrl!)} /> : null}
             </View>
-            <TextField label="API key" value={key} onChangeText={setKey} placeholder="Paste your key" secureTextEntry autoCapitalize="none" autoCorrect={false} error={error} />
+            <TextField label={tx('API key')} value={key} onChangeText={setKey} placeholder={tx('Paste your key')} secureTextEntry autoCapitalize="none" autoCorrect={false} error={error} />
             <Text style={{ fontFamily: font.sans, fontSize: fs.xs, color: c.muted, lineHeight: 18 }}>
-              Your key stays on this phone in the system keystore and is only sent to {preset?.name}.
+              {tx('Your key stays on this phone in the system keystore and is only sent to {name}.', { name: preset?.name ?? '' })}
             </Text>
           </View>
         );
@@ -207,9 +213,9 @@ export default function Onboarding() {
             <Animated.View entering={FadeIn.springify()} style={[s.doneMark, { backgroundColor: c.mossAction }]}>
               <Icon name="check" size={40} color={c.onAction} />
             </Animated.View>
-            <TextReveal text={getState().settings.name ? `You're all set, ${getState().settings.name!.split(/\s+/)[0]}.` : "You're all set."} style={[s.display, { color: c.text }]} />
+            <TextReveal text={getState().settings.name ? tx("You're all set, {name}.", { name: getState().settings.name!.split(/\s+/)[0] }) : tx("You're all set.")} style={[s.display, { color: c.text }]} />
             <Text style={[s.lead, { color: c.secondary }]}>
-              You’re chatting with {getState().settings.model || 'your new model'}. Tap its name at the top any time to switch.
+              {getState().settings.model ? tx('You’re chatting with {model}. Tap its name at the top any time to switch.', { model: getState().settings.model ?? '' }) : tx('You’re chatting with your new model. Tap its name at the top any time to switch.')}
             </Text>
           </View>
         );
@@ -221,31 +227,31 @@ export default function Onboarding() {
       case 'welcome':
         return (
           <>
-            <ActionButton title="Get started" onPress={() => go('you')} />
-            <ActionButton title="I already use Neru on my computer" variant="ghost" onPress={() => finish('/pair')} />
+            <ActionButton title={tx('Get started')} onPress={() => go('you')} />
+            <ActionButton title={tx('I already use Neru on my computer')} variant="ghost" onPress={() => finish('/pair')} />
           </>
         );
       case 'you':
         return (
           <ActionButton
-            title={name.trim() ? `Nice to meet you, ${name.trim().split(/\s+/)[0]}` : 'Continue'}
+            title={name.trim() ? tx('Nice to meet you, {name}', { name: name.trim().split(/\s+/)[0] }) : tx('Continue')}
             disabled={!name.trim() || !gender}
             onPress={() => (updateSettings({ name: name.trim(), gender: gender as 'male' | 'female' }), go('tour'))}
           />
         );
       case 'tour':
-        return <ActionButton title="Continue" onPress={() => go('path')} />;
+        return <ActionButton title={tx('Continue')} onPress={() => go('path')} />;
       case 'path':
-        return <ActionButton title={path === 'free' ? 'Continue' : path === 'desktop' ? 'Pair my desktop' : 'Start exploring'} onPress={onPath} />;
+        return <ActionButton title={path === 'local' ? tx('Browse models') : path === 'free' ? tx('Continue') : path === 'desktop' ? tx('Pair my desktop') : tx('Start exploring')} onPress={onPath} />;
       case 'key':
         return (
           <>
-            <ActionButton title="Connect" onPress={saveKey} loading={busy} disabled={!key.trim()} />
-            <ActionButton title="I'll do this later" variant="ghost" onPress={() => finish()} />
+            <ActionButton title={tx('Connect')} onPress={saveKey} loading={busy} disabled={!key.trim()} />
+            <ActionButton title={tx("I'll do this later")} variant="ghost" onPress={() => finish()} />
           </>
         );
       case 'done':
-        return <ActionButton title="Start chatting" onPress={() => finish()} />;
+        return <ActionButton title={tx('Start chatting')} onPress={() => finish()} />;
     }
   };
 
@@ -253,9 +259,9 @@ export default function Onboarding() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
 
       <View style={[s.top, { paddingTop: insets.top + 8 }]}>
-        {index > 0 && step !== 'done' ? <IconButton name="chevronLeft" label="Back" color={c.text} onPress={() => go(ORDER[index - 1])} /> : <View style={{ width: 48 }} />}
+        {index > 0 && step !== 'done' ? <IconButton name="chevronLeft" label={tx('Back')} color={c.text} onPress={() => go(ORDER[index - 1])} /> : <View style={{ width: 48 }} />}
         <Progress index={index} total={ORDER.length} />
-        {step !== 'done' ? <ActionButton title="Skip" variant="ghost" onPress={() => finish()} /> : <View style={{ width: 48 }} />}
+        {step !== 'done' ? <ActionButton title={tx('Skip')} variant="ghost" onPress={() => finish()} /> : <View style={{ width: 48 }} />}
       </View>
 
       <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={[s.content, { paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">

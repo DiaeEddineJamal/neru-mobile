@@ -6,7 +6,6 @@
 // (user control and freedom).
 // Everything that moves is a plain native view animated on the UI thread: the hole is one view whose very thick
 // border is the dimming, so its inside is the rounded cut-out. (An SVG mask redrew the whole screen every frame.)
-import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, BackHandler, Pressable, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSpring, withTiming } from 'react-native-reanimated';
@@ -15,7 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { haptic } from '@/haptics';
 import { font, fs, TAP, useColors } from '@/theme';
+import { MascotImage } from '@/ui/mascot';
 import { SPRING_LAYOUT } from '@/ui/motion';
+import { t } from '@/i18n';
 
 /** One stop on a walkthrough. `target` is a `TourTarget` name; without one the card sits centred. */
 export type TourStep = { target?: string; title: string; body: string; enter?: () => void };
@@ -142,24 +143,24 @@ export function Tour({ steps, onClose }: { steps: TourStep[]; onClose: (finished
       <Animated.View onLayout={e => setCardH(e.nativeEvent.layout.height)} style={[s.card, { top: 0, left: MARGIN, width: cardW, backgroundColor: c.surface2, borderColor: c.border }, cardStyle]}>
         {spot ? <View style={[s.caret, { left: caretX, backgroundColor: c.surface2, borderColor: c.border }, fitsBelow ? { top: -CARET / 2, borderRightWidth: 0, borderBottomWidth: 0 } : { bottom: -CARET / 2, borderLeftWidth: 0, borderTopWidth: 0 }]} /> : null}
         <Animated.View key={index} entering={reduce ? undefined : FadeInDown.duration(220)} style={[{ gap: 6 }, centred ? s.centred : { paddingRight: 28 }]}>
-          {centred ? <Image source={require('@/assets/images/neru-mascot.png')} style={s.mascot} contentFit="contain" accessibilityIgnoresInvertColors /> : null}
-          <Text style={[s.eyebrow, { color: c.sage }]}>{centred && index === 0 ? 'Walkthrough' : `Step ${index + 1} of ${steps.length}`}</Text>
+          {centred ? <MascotImage style={s.mascot} contentFit="contain" accessibilityIgnoresInvertColors /> : null}
+          <Text style={[s.eyebrow, { color: c.sage }]}>{centred && index === 0 ? t('Walkthrough') : t('Step {n} of {total}', { n: index + 1, total: steps.length })}</Text>
           <Text accessibilityRole="header" style={[s.title, { color: c.text }, centred && { textAlign: 'center', fontSize: 30, lineHeight: 34 }]}>{step.title}</Text>
           <Text style={[s.body, { color: c.secondary }, centred && { textAlign: 'center' }]}>{step.body}</Text>
         </Animated.View>
-        <View style={[s.dots, centred && { alignSelf: 'center' }]} accessibilityLabel={`Step ${index + 1} of ${steps.length}`}>
+        <View style={[s.dots, centred && { alignSelf: 'center' }]} accessibilityLabel={t('Step {n} of {total}', { n: index + 1, total: steps.length })}>
           {steps.map((_, i) => <View key={i} style={[s.dot, { backgroundColor: i <= index ? c.moss : c.surface3, width: i === index ? 18 : 6 }]} />)}
         </View>
         <View style={s.actions}>
-          {!last ? <Pressable onPress={() => onClose(false)} accessibilityRole="button" hitSlop={8} style={s.skip}><Text style={[s.skipText, { color: c.muted }]}>Skip tour</Text></Pressable> : null}
+          {!last ? <Pressable onPress={() => onClose(false)} accessibilityRole="button" hitSlop={8} style={s.skip}><Text style={[s.skipText, { color: c.muted }]}>{t('Skip tour')}</Text></Pressable> : null}
           <View style={{ flex: 1 }} />
-          {index > 0 ? <Pressable onPress={() => go(index - 1, -1)} accessibilityRole="button" accessibilityLabel="Back" style={({ pressed }) => [s.back, { backgroundColor: c.surface3, opacity: pressed ? 0.7 : 1 }]}><Icon name="chevronLeft" size={18} color={c.text} /></Pressable> : null}
+          {index > 0 ? <Pressable onPress={() => go(index - 1, -1)} accessibilityRole="button" accessibilityLabel={t('Back')} style={({ pressed }) => [s.back, { backgroundColor: c.surface3, opacity: pressed ? 0.7 : 1 }]}><Icon name="chevronLeft" size={18} color={c.text} /></Pressable> : null}
           <Pressable onPress={() => go(index + 1, 1)} accessibilityRole="button" style={({ pressed }) => [s.next, { backgroundColor: c.mossAction, transform: [{ scale: pressed ? 0.96 : 1 }] }]}>
-            <Text style={[s.nextText, { color: c.onAction }]}>{last ? 'Start chatting' : index === 0 && centred ? 'Show me around' : 'Next'}</Text>
+            <Text style={[s.nextText, { color: c.onAction }]}>{last ? t('Start chatting') : index === 0 && centred ? t('Show me around') : t('Next')}</Text>
             {!last ? <Icon name="chevronRight" size={16} color={c.onAction} /> : null}
           </Pressable>
         </View>
-        {!last ? <Pressable onPress={() => onClose(false)} accessibilityRole="button" accessibilityLabel="Close the walkthrough" style={s.close}><Icon name="close" size={16} color={c.muted} /></Pressable> : null}
+        {!last ? <Pressable onPress={() => onClose(false)} accessibilityRole="button" accessibilityLabel={t('Close the walkthrough')} style={s.close}><Icon name="close" size={16} color={c.muted} /></Pressable> : null}
       </Animated.View>
     </Animated.View>
   );

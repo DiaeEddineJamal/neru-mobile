@@ -7,6 +7,7 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useFrameCallback, useReducedMotion, useSharedValue, type SharedValue } from 'react-native-reanimated';
+import { t } from '@/i18n';
 
 const BARS = 64; // enough to span the widest composer; the strip clips the oldest
 const SPACING = 6; // 3dp bar + 3dp gap
@@ -55,7 +56,7 @@ export function VoiceWaveform({ level, active, color }: { level: SharedValue<num
   });
 
   return (
-    <View style={[s.row, reduce && s.centered]} accessibilityLabel={active ? 'Listening' : 'Finishing dictation'} accessibilityLiveRegion="polite">
+    <View style={[s.row, reduce && s.centered]} accessibilityLabel={active ? t('Listening') : t('Finishing dictation')} accessibilityLiveRegion="polite">
       {reduce
         ? [0.6, 1, 0.8, 1, 0.6].map((k, i) => <StillBar key={i} level={smooth} scale={k} color={color} />)
         : Array.from({ length: BARS }, (_, i) => <Bar key={i} samples={samples} offset={offset} index={i} color={color} />)}

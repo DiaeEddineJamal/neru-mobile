@@ -24,6 +24,7 @@ import { DocCard } from '@/ui/message-attachments';
 import { EASE_OUT } from '@/ui/motion';
 import { TourTarget } from '@/ui/tour';
 import { VoiceWaveform } from '@/ui/voice-waveform';
+import { t } from '@/i18n';
 
 export type PromptAttachment = { id: string; name: string; uri?: string; kind: 'image' | 'file'; mime?: string };
 
@@ -71,7 +72,7 @@ const itemOut: EntryExitAnimationFunction = () => {
   };
 };
 
-export function PromptInput({ value, onChangeText, onSend, onStop, streaming, placeholder = 'Message Neru', onAttach, onVoice, listening = false, attachments = [], onRemoveAttachment, onOpenImage, voiceLevel, voiceProcessing = false, disabled, allowSteer = false, tour = false }: Props) {
+export function PromptInput({ value, onChangeText, onSend, onStop, streaming, placeholder = t('Message Neru'), onAttach, onVoice, listening = false, attachments = [], onRemoveAttachment, onOpenImage, voiceLevel, voiceProcessing = false, disabled, allowSteer = false, tour = false }: Props) {
   const c = useColors();
   const bottomPad = useBottomPad();
   const reduce = useReducedMotion();
@@ -95,20 +96,20 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
               <Animated.View key={a.id} entering={reduce ? FadeIn.duration(200) : itemIn} exiting={reduce ? FadeOut.duration(200) : itemOut} layout={reduce ? undefined : itemLayout}>
                 {a.kind === 'image' && a.uri ? (
                   onOpenImage ? (
-                    <Button label={`Open ${a.name}`} onPress={() => onOpenImage(a.id)} pressScale={0.98} hitSlop={0}>
+                    <Button label={t('Open {name}', { name: a.name })} onPress={() => onOpenImage(a.id)} pressScale={0.98} hitSlop={0}>
                       <Image source={{ uri: a.uri }} style={[s.thumb, { backgroundColor: c.surface3 }]} contentFit="cover" accessibilityIgnoresInvertColors />
                     </Button>
                   ) : (
                     <Image source={{ uri: a.uri }} style={[s.thumb, { backgroundColor: c.surface3 }]} contentFit="cover" accessibilityLabel={a.name} accessibilityIgnoresInvertColors />
                   )
                 ) : (
-                  <View accessible accessibilityLabel={`Attached file ${a.name}`}>
+                  <View accessible accessibilityLabel={t('Attached file {name}', { name: a.name })}>
                     <DocCard name={a.name} mime={a.mime} />
                   </View>
                 )}
                 {onRemoveAttachment ? (
                   // 20dp badge in the corner; the 28dp pressable plus 10dp slop gives a 48dp target.
-                  <Button label={`Remove ${a.name}`} onPress={() => onRemoveAttachment(a.id)} hitSlop={10} style={s.remove}>
+                  <Button label={t('Remove {name}', { name: a.name })} onPress={() => onRemoveAttachment(a.id)} hitSlop={10} style={s.remove}>
                     <View style={s.removeBadge}>
                       <Icon name="close" size={11} color="#fff" />
                     </View>
@@ -126,23 +127,23 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
           placeholderTextColor={`${c.muted}8c`}
           editable={!disabled}
           multiline
-          accessibilityLabel="Prompt"
+          accessibilityLabel={t('Prompt')}
           onFocus={() => focus.set(withTiming(1, { duration: 150 }))}
           onBlur={() => focus.set(withTiming(0, { duration: 150 }))}
           style={[s.input, { color: c.text }]}
         />
 
         <View style={s.row}>
-          <TourTarget name={tour ? 'attach' : undefined}><Button label="Add photos or files" onPress={onAttach} disabled={disabled || streaming} style={s.icon}>
+          <TourTarget name={tour ? 'attach' : undefined}><Button label={t('Add photos or files')} onPress={onAttach} disabled={disabled || streaming} style={s.icon}>
             <Icon name="plus" size={18} color={c.muted} />
           </Button></TourTarget>
-          <TourTarget name={tour ? 'mic' : undefined}><Button label={listening ? 'Stop dictation' : 'Voice input'} feedback="medium" onPress={onVoice} disabled={disabled} style={[s.icon, listening && { backgroundColor: c.mossDeep, borderRadius: 999 }]}>
+          <TourTarget name={tour ? 'mic' : undefined}><Button label={listening ? t('Stop dictation') : t('Voice input')} feedback="medium" onPress={onVoice} disabled={disabled} style={[s.icon, listening && { backgroundColor: c.mossDeep, borderRadius: 999 }]}>
             <Icon name="mic" size={18} color={listening ? c.moss : c.muted} />
           </Button></TourTarget>
           {listening && voiceLevel ? <VoiceWaveform level={voiceLevel} active={!voiceProcessing} color={c.text} /> : null}
-          {streaming && canSubmit ? <Button label="Stop generating" onPress={onStop} style={s.icon}><Icon name="stop" size={12} color={c.muted} /></Button> : null}
+          {streaming && canSubmit ? <Button label={t('Stop generating')} onPress={onStop} style={s.icon}><Icon name="stop" size={12} color={c.muted} /></Button> : null}
           <Button
-            label={showStop ? 'Stop generating' : streaming ? 'Send follow-up' : 'Send prompt'}
+            label={showStop ? t('Stop generating') : streaming ? t('Send follow-up') : t('Send prompt')}
             feedback={showStop ? 'light' : 'medium'}
             onPress={showStop ? onStop : submit}
             disabled={showStop ? !!disabled : !canSubmit}
@@ -161,7 +162,7 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
 }
 
 const s = StyleSheet.create({
-  box: { borderRadius: 16, borderWidth: 1, padding: 8 },
+  box: { borderRadius: 24, borderWidth: 1, padding: 8 },
   tray: { gap: 8, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 6 },
   thumb: { width: 64, height: 64, borderRadius: 12 },
   remove: { position: 'absolute', top: 0, right: 0, width: 28, height: 28 },
@@ -169,6 +170,6 @@ const s = StyleSheet.create({
   // minRows 2, grows to 6 lines before scrolling (beUI caps at 8 on desktop).
   input: { fontFamily: font.sans, fontSize: fs.base, lineHeight: LINE, minHeight: 2 * LINE + 6, maxHeight: 6 * LINE + 6, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 0, textAlignVertical: 'top' },
   // Left icons sit 16 apart (beUI gap-1) so their 48dp hit areas don't overlap.
-  row: { marginTop: 4, minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  icon: { width: 32, height: 32, borderRadius: 16 },
+  row: { marginTop: 4, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  icon: { width: 48, height: 48, borderRadius: 24 },
 });

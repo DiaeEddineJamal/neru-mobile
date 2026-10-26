@@ -14,6 +14,7 @@ import { RollText } from '@/ui/action-swap';
 import { AgentDisclosure, DisclosureChevron } from '@/ui/agent-disclosure';
 import { Button } from '@/ui/button';
 import { EASE_OUT } from '@/ui/motion';
+import { t as tx } from '@/i18n';
 
 // initial { opacity: 0, y: 4 } → { opacity: 1, y: 0 }, exit { opacity: 0 }, 0.22s EASE_OUT (0.12s, no y, reduced).
 const actionsIn: EntryExitAnimationFunction = () => {
@@ -44,7 +45,7 @@ export function ToolApproval({ tool, summary, detail, onApprove, onDeny, onAlway
     if (resolved) setOpen(false);
   }
   const tone = resolved === 'approved' ? c.sage : resolved === 'denied' ? c.danger : c.codeChip;
-  const status = resolved === 'approved' ? 'Approved' : resolved === 'denied' ? 'Denied' : 'Approval required';
+  const status = resolved === 'approved' ? tx('Approved') : resolved === 'denied' ? tx('Denied') : tx('Approval required');
 
   return (
     <View style={{ width: '100%', overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface2 }}>
@@ -69,7 +70,7 @@ export function ToolApproval({ tool, summary, detail, onApprove, onDeny, onAlway
             hitSlop={12}
             style={{ marginTop: 8, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4 }}
           >
-            <Text style={{ fontFamily: font.medium, fontSize: fs.xs, color: c.muted }}>View details</Text>
+            <Text style={{ fontFamily: font.medium, fontSize: fs.xs, color: c.muted }}>{tx('View details')}</Text>
             <DisclosureChevron open={open} color={c.muted} />
           </Pressable>
         </View>
@@ -84,16 +85,16 @@ export function ToolApproval({ tool, summary, detail, onApprove, onDeny, onAlway
       {!resolved ? (
         <Animated.View entering={reduce ? undefined : actionsIn} exiting={actionsOut} style={{ gap: 4, borderTopWidth: 1, borderTopColor: c.border, paddingHorizontal: 16, paddingTop: 12, paddingBottom: onAlways ? 4 : 12 }}>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Button label="Deny" onPress={onDeny} pressScale={0.97} hitSlop={0} style={{ flex: 1, height: TAP, borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg }}>
-              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.text }}>Deny</Text>
+            <Button label={tx('Deny')} onPress={onDeny} pressScale={0.97} hitSlop={0} style={{ flex: 1, height: TAP, borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg }}>
+              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.text }}>{tx('Deny')}</Text>
             </Button>
-            <Button label="Allow once" onPress={onApprove} pressScale={0.97} hitSlop={0} style={{ flex: 1, height: TAP, borderRadius: 12, backgroundColor: c.text }}>
-              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.bg }}>Allow once</Text>
+            <Button label={tx('Allow once')} onPress={onApprove} pressScale={0.97} hitSlop={0} style={{ flex: 1, height: TAP, borderRadius: 12, backgroundColor: c.text }}>
+              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.bg }}>{tx('Allow once')}</Text>
             </Button>
           </View>
           {onAlways ? (
-            <Button label="Always allow" onPress={onAlways} pressScale={0.97} hitSlop={0} style={{ height: TAP }}>
-              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.muted }}>Always allow</Text>
+            <Button label={tx('Always allow')} onPress={onAlways} pressScale={0.97} hitSlop={0} style={{ height: TAP }}>
+              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.muted }}>{tx('Always allow')}</Text>
             </Button>
           ) : null}
         </Animated.View>

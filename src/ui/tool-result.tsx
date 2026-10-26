@@ -10,6 +10,7 @@ import { font, fs, TAP, useColors } from '@/theme';
 import { RollText } from '@/ui/action-swap';
 import { AgentDisclosure, DisclosureChevron } from '@/ui/agent-disclosure';
 import { LoaderCircle } from '@/ui/loader-circle';
+import { t } from '@/i18n';
 
 export type ToolResultStatus = 'running' | 'done' | 'failed';
 
@@ -38,7 +39,7 @@ export function ToolResult({ tool, summary, detail, status }: { tool: string; su
       <Pressable
         onPress={() => setOpen(!open)}
         accessibilityRole="button"
-        accessibilityLabel={`${summary}, ${tool}, ${statusLabel[status]}`}
+        accessibilityLabel={`${summary}, ${tool}, ${t(statusLabel[status])}`}
         accessibilityState={{ expanded: open }}
         style={{ minHeight: TAP, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}
       >
@@ -51,7 +52,7 @@ export function ToolResult({ tool, summary, detail, status }: { tool: string; su
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           {running ? <LoaderCircle size={12} color={tone} /> : <Icon name={status === 'done' ? 'checkCircle' : 'xCircle'} size={12} color={tone} />}
-          <RollText value={status} style={{ fontFamily: font.medium, fontSize: 11, color: tone }}>{statusLabel[status]}</RollText>
+          <RollText value={status} style={{ fontFamily: font.medium, fontSize: 11, color: tone }}>{t(statusLabel[status])}</RollText>
         </View>
         <DisclosureChevron open={open} color={c.muted} />
       </Pressable>

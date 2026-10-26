@@ -2,6 +2,7 @@
 import { getRandomBytes } from 'expo-crypto';
 
 import { connectionUrls, open, seal, type Pairing } from '@/remote/crypto';
+import { t } from '@/i18n';
 
 export type Status = 'off' | 'connecting' | 'connected' | 'offline';
 type Reply = { id: number; ok: boolean; data?: unknown; error?: string };
@@ -55,14 +56,14 @@ export class RemoteClient {
       const w = this.waiting.get(msg.id);
       this.waiting.delete(msg.id);
       if (msg.ok) w?.resolve(msg.data);
-      else w?.reject(new Error(msg.error ?? 'The desktop could not do that.'));
+      else w?.reject(new Error(msg.error ?? t('The desktop could not do that.')));
     };
     ws.onclose = () => {
       clearTimeout(deadline);
       if (this.ws !== ws) return;
       this.ws = null;
       this.authenticated = false;
-      for (const w of this.waiting.values()) w.reject(new Error('Lost the connection to your desktop.'));
+      for (const w of this.waiting.values()) w.reject(new Error(t('Lost the connection to your desktop.')));
       this.waiting.clear();
       if (this.closed) return;
       // Try the next LAN address the desktop advertised, then back off.
@@ -77,21 +78,21 @@ export class RemoteClient {
     if (this.authenticated) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const done = () => { clearTimeout(timeout); this.readyListeners.delete(done); resolve(); };
-      const timeout = setTimeout(() => { this.readyListeners.delete(done); reject(new Error('Could not connect. Keep Neru open and awake, and check internet access or local Wi-Fi.')); }, this.pairing.endpoint ? 60000 : 25000);
+      const timeout = setTimeout(() => { this.readyListeners.delete(done); reject(new Error(t('Could not connect. Keep Neru open and awake, and check internet access or local Wi-Fi.'))); }, this.pairing.endpoint ? 60000 : 25000);
       this.readyListeners.add(done);
     });
   }
 
   request<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
     const ws = this.ws;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error('Your desktop is not connected.'));
+    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error(t('Your desktop is not connected.')));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       this.waiting.set(id, { resolve: v => resolve(v as T), reject });
       try { ws.send(seal(this.pairing.key, getRandomBytes(24), JSON.stringify({ id, cmd, args }))); }
       catch (e) { this.waiting.delete(id); reject(e); return; }
       setTimeout(() => {
-        if (this.waiting.delete(id)) reject(new Error('Your desktop did not answer.'));
+        if (this.waiting.delete(id)) reject(new Error(t('Your desktop did not answer.')));
       }, 20_000);
     });
   }

@@ -9,9 +9,12 @@ import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
+import { followThemeIcon } from '@/app-icon';
+import { startMcp } from '@/mcp/store';
 import { startNotifications } from '@/notify';
 import { restorePairing, wakeRemote } from '@/remote/store';
-import { getState } from '@/store';
+import { syncDirection, t } from '@/i18n';
+import { getState, useStore } from '@/store';
 import { font, useColors, useScheme } from '@/theme';
 import { DialogHost } from '@/ui/confirm';
 import { ToastProvider } from '@/ui/toast';
@@ -21,14 +24,18 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const scheme = useScheme();
   const c = useColors();
+  const language = useStore(s => s.settings.language ?? 'system');
   const [loaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, InstrumentSerif_400Regular, JetBrainsMono_400Regular });
 
   useEffect(() => {
+    syncDirection();
     void restorePairing();
     const stopNotify = startNotifications();
+    const stopMcp = startMcp();
+    const stopIcon = followThemeIcon();
     // Phones drop sockets in the background; reconnect as soon as Neru is back on screen.
     const sub = AppState.addEventListener('change', s => s === 'active' && wakeRemote());
-    return () => (stopNotify(), sub.remove());
+    return () => (stopNotify(), stopMcp(), stopIcon(), sub.remove());
   }, []);
 
   useEffect(() => {
@@ -49,17 +56,22 @@ export default function RootLayout() {
       <ThemeProvider value={theme}>
         <ToastProvider>
           <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
+          <Stack key={language} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
             <Stack.Screen name="(drawer)" />
             <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
-            <Stack.Screen name="settings" options={{ ...modal, title: 'Settings' }} />
-            <Stack.Screen name="providers" options={{ ...modal, title: 'Providers and keys' }} />
+            <Stack.Screen name="settings" options={{ ...modal, title: t('Settings') }} />
+            <Stack.Screen name="providers" options={{ ...modal, title: t('Providers and keys') }} />
             <Stack.Screen name="models" options={{ ...modal, title: 'Pocket Lab' }} />
-            <Stack.Screen name="magic-touch" options={{ ...modal, title: 'Magic Touch' }} />
-            <Stack.Screen name="pair" options={{ ...modal, title: 'Pair a desktop' }} />
-            <Stack.Screen name="team-new" options={{ ...modal, title: 'New team task' }} />
-            <Stack.Screen name="diff/[session]/[event]" options={{ ...modal, title: 'Changes' }} />
-            <Stack.Screen name="changelog" options={{ ...modal, title: "What's new" }} />
+            <Stack.Screen name="magic-touch" options={{ ...modal, title: t('Magic Touch') }} />
+            <Stack.Screen name="pair" options={{ ...modal, title: t('Pair a desktop') }} />
+            <Stack.Screen name="team-new" options={{ ...modal, title: t('New team task') }} />
+            <Stack.Screen name="task-new" options={{ ...modal, title: t('New desktop task') }} />
+            <Stack.Screen name="tasks" options={{ ...modal, title: t('Desktop tasks') }} />
+            <Stack.Screen name="digest" options={{ ...modal, title: t('While you were away') }} />
+            <Stack.Screen name="connectors" options={{ ...modal, title: t('Connectors') }} />
+            <Stack.Screen name="mcp-auth" options={{ headerShown: false, animation: 'none' }} />
+            <Stack.Screen name="diff/[session]/[event]" options={{ ...modal, title: t('Changes') }} />
+            <Stack.Screen name="changelog" options={{ ...modal, title: t("What's new") }} />
           </Stack>
           <DialogHost />
         </ToastProvider>

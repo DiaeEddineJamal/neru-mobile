@@ -1,15 +1,16 @@
 import * as Clipboard from 'expo-clipboard';
 import { haptic } from '@/haptics';
 import { askForNotifications } from '@/notify';
-import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import { pickFiles, pickPhotos, takePhoto } from '@/attach';
+import { cameraChat, pickFiles, pickPhotos, recoverPhoto, takePhoto } from '@/attach';
+import { mergeAttachments, useComposerDraft } from '@/drafts';
 import { greeting } from '@/greetings';
+import { t as tx } from '@/i18n';
 import { ChatScreen, VoiceComposer } from '@/components/ChatShell';
 import { Icon, IconButton, type IconName } from '@/components/Icon';
 import { editMessage, NO_MODEL, retry, send, setModelSheet, stop, useStore, type Attachment, type Message } from '@/store';
@@ -25,12 +26,16 @@ import { ReasoningText } from '@/ui/reasoning-text';
 import { TextReveal } from '@/ui/text-reveal';
 import { ThinkingShimmer } from '@/ui/thinking-shimmer';
 import { useToast } from '@/ui/toast';
+import { ToolApproval } from '@/ui/tool-approval';
+import { MascotImage } from '@/ui/mascot';
+import { ToolResult } from '@/ui/tool-result';
+import { answerToolAsk, useToolAsk } from '@/llm/tools';
 
 
 /** Markdown read aloud sounds like punctuation soup; speak the words only. */
 const speakable = (md: string) =>
   md
-    .replace(/```[\s\S]*?```/g, ' (code block) ')
+    .replace(/```[\s\S]*?```/g, ` ${tx('(code block)')} `)
     .replace(/`([^`]+)`/g, '$1')
     .replace(/[*_#>|]/g, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
@@ -54,8 +59,8 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   const notice = useStore(st => (st.notice && st.notice.chatId === chatId ? st.notice.text : null));
   const hasModel = useStore(st => !!st.settings.model);
   const list = useRef<FlatList<Message>>(null);
-  const [text, setText] = useState('');
-  const [pending, setPending] = useState<Attachment[]>([]);
+  const { text, setText, attachments: pending, setAttachments: setPending } = useComposerDraft(chatId ?? 'new');
+  const queuedPicker = useRef<(() => Promise<Attachment[]>) | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [editing, setEditing] = useState<Message | null>(null);
   const [speaking, setSpeaking] = useState<string | null>(null);
@@ -77,7 +82,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   const copy = (value: string) => {
     Clipboard.setStringAsync(value);
     haptic.light();
-    toast.show({ title: 'Copied' });
+    toast.show({ title: tx('Copied') });
   };
 
   const speak = (m: Message) => {
@@ -108,11 +113,32 @@ export function ChatView({ chatId }: { chatId: string | null }) {
     setText(m.text);
   };
 
-  const attach = async (pick: () => Promise<Attachment[]>) => {
+  // Launch external activities only after the modal has completely left the screen.
+  const attach = (pick: () => Promise<Attachment[]>) => {
+    queuedPicker.current = pick;
     setAttachOpen(false);
-    const picked = await pick();
-    if (picked.length) setPending(p => [...p, ...picked]);
   };
+  const finishAttach = useCallback(() => {
+    const pick = queuedPicker.current;
+    queuedPicker.current = null;
+    if (!pick) return;
+    void pick().then(picked => {
+      if (picked.length) {
+        setPending(p => mergeAttachments(p, picked));
+        // Android can recreate the navigation activity while a picker is open.
+        // Return to the original composer, whose persisted draft now owns the result.
+        router.navigate(chatId ? `/chat/${chatId}` : '/');
+      }
+    }).catch(error => toast.show({ title: tx('Add to chat'), description: String(error?.message ?? error) }));
+  }, [chatId, setPending, toast]);
+
+  // Neru was killed while the camera was open: go back to the chat that asked, and attach the photo there.
+  useEffect(() => {
+    const target = cameraChat();
+    if (!target) return;
+    if (target === (chatId ?? 'new')) void recoverPhoto().then(p => p.length && setPending(x => mergeAttachments(x, p)));
+    else if (!chatId) router.navigate(target === 'task' ? '/task-new' : target.startsWith('desktop:') ? `/desktop/${target.slice(8)}` : `/chat/${target}`);
+  }, [chatId, setPending]);
 
   const openImage = (items: Attachment[], id: string) => {
     const images = items.filter(a => a.kind === 'image');
@@ -128,9 +154,9 @@ export function ChatView({ chatId }: { chatId: string | null }) {
           {item.text ? (
             <ContextMenu
               items={[
-                { label: 'Copy', icon: 'copy', onPress: () => copy(item.text) },
-                { label: 'Edit', icon: 'compose', onPress: () => startEdit(item) },
-                { label: 'Share', icon: 'share', onPress: () => Share.share({ message: item.text }) },
+                { label: tx('Copy'), icon: 'copy', onPress: () => copy(item.text) },
+                { label: tx('Edit'), icon: 'compose', onPress: () => startEdit(item) },
+                { label: tx('Share'), icon: 'share', onPress: () => Share.share({ message: item.text }) },
               ]}
             >
               <MessageBubble text={item.text} animateIn={item.createdAt > openedAt - FRESH_MS} />
@@ -143,14 +169,17 @@ export function ChatView({ chatId }: { chatId: string | null }) {
       <Animated.View entering={item.createdAt > openedAt - FRESH_MS ? FadeIn.duration(220).delay(120) : undefined} style={{ paddingHorizontal: 20, gap: 8 }}>
         {/* While a reply streams, the orb footer below says what the model is doing, as on the desktop. */}
         {item.reasoning ? <ReasoningText text={item.reasoning} streaming={false} /> : null}
+        {(item.tools ?? []).map((t, i) => (
+          <ToolResult key={i} tool={t.label} summary={t.status === 'denied' ? tx('{name} · declined', { name: t.name }) : t.name} status={t.status === 'running' ? 'running' : t.status === 'done' ? 'done' : 'failed'} />
+        ))}
         {item.error ? (
           <View style={[s.error, { backgroundColor: c.surface2, borderColor: c.border }]} accessibilityLiveRegion="polite">
-            <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.danger, lineHeight: 20 }}>{item.error}</Text>
+            <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.danger, lineHeight: 20 }}>{item.error === NO_MODEL ? tx(NO_MODEL) : item.error}</Text>
             {isLast && chatId ? (
               item.error === NO_MODEL ? (
-                <ActionButton title="Choose a model" variant="secondary" icon="sparkles" onPress={() => setModelSheet(true)} />
+                <ActionButton title={tx('Choose a model')} variant="secondary" icon="sparkles" onPress={() => setModelSheet(true)} />
               ) : (
-                <ActionButton title="Try again" variant="secondary" icon="retry" onPress={() => retry(chatId)} />
+                <ActionButton title={tx('Try again')} variant="secondary" icon="retry" onPress={() => retry(chatId)} />
               )
             ) : null}
           </View>
@@ -158,25 +187,26 @@ export function ChatView({ chatId }: { chatId: string | null }) {
           <ContextMenu
             disabled={live}
             items={[
-              { label: 'Copy', icon: 'copy', onPress: () => copy(item.text) },
-              { label: speaking === item.id ? 'Stop reading' : 'Read aloud', icon: 'speaker', onPress: () => speak(item) },
-              { label: 'Share', icon: 'share', onPress: () => Share.share({ message: item.text }) },
-              ...(isLast && chatId ? [{ label: 'Retry', icon: 'retry' as IconName, onPress: () => retry(chatId) }] : []),
+              { label: tx('Copy'), icon: 'copy', onPress: () => copy(item.text) },
+              { label: speaking === item.id ? tx('Stop reading') : tx('Read aloud'), icon: 'speaker', onPress: () => speak(item) },
+              { label: tx('Share'), icon: 'share', onPress: () => Share.share({ message: item.text }) },
+              ...(isLast && chatId ? [{ label: tx('Retry'), icon: 'retry' as IconName, onPress: () => retry(chatId) }] : []),
             ]}
           >
             <AssistantMessage text={item.text} streaming={live} onCopy={() => copy(item.text)} onRetry={isLast && chatId ? () => retry(chatId) : undefined} />
           </ContextMenu>
         ) : null}
-        {live && !item.error ? <ThinkingShimmer {...(item.text ? { state: 'composing', label: 'Composing' } : item.reasoning ? { state: 'solving', label: 'Reasoning' } : { state: 'working', label: 'Thinking' })} /> : null}
+        {live && !item.error ? <ThinkingShimmer {...(item.text ? { state: 'composing', label: tx('Composing') } : item.reasoning ? { state: 'solving', label: tx('Reasoning') } : { state: 'working', label: tx('Thinking') })} /> : null}
         {!live && item.model && isLast ? <Text style={[s.model, { color: c.muted }]}>{item.model}</Text> : null}
       </Animated.View>
     );
   };
 
+  const ask = useToolAsk();
   const options: [IconName, string, () => Promise<Attachment[]>][] = [
-    ['camera', 'Camera', takePhoto],
-    ['photo', 'Photos', pickPhotos],
-    ['file', 'Files', pickFiles],
+    ['camera', tx('Camera'), () => takePhoto(chatId)],
+    ['photo', tx('Photos'), () => pickPhotos(chatId)],
+    ['file', tx('Files'), pickFiles],
   ];
 
   return (
@@ -199,29 +229,41 @@ export function ChatView({ chatId }: { chatId: string | null }) {
           />
           {scrolledUp ? (
             <Animated.View entering={FadeIn} exiting={FadeOut} style={s.jumpWrap}>
-              <IconButton name="chevronDown" label="Jump to the latest message" color={c.text} onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })} style={{ ...s.jump, backgroundColor: c.surface2, borderColor: c.border }} />
+              <IconButton name="chevronDown" label={tx('Jump to the latest message')} color={c.text} onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })} style={{ ...s.jump, backgroundColor: c.surface2, borderColor: c.border }} />
             </Animated.View>
           ) : null}
         </View>
       ) : (
         <View style={s.empty}>
-          <Image source={require('@/assets/images/neru-mascot.png')} style={{ width: 72, height: 72 }} contentFit="contain" accessibilityIgnoresInvertColors />
+          <MascotImage style={{ width: 72, height: 72 }} contentFit="contain" accessibilityIgnoresInvertColors />
           <TextReveal key={hello} text={hello} style={[s.hello, { color: c.text }]} />
           {hasModel ? (
-            <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.muted }}>How can I help?</Text>
+            <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.muted }}>{tx('How can I help?')}</Text>
           ) : (
-            <ActionButton title="Choose a model" variant="secondary" onPress={() => setModelSheet(true)} />
+            <ActionButton title={tx('Choose a model')} variant="secondary" onPress={() => setModelSheet(true)} />
           )}
         </View>
       )}
 
       {notice ? <Text style={[s.notice, { color: c.muted }]} accessibilityLiveRegion="polite">{notice}</Text> : null}
+      {ask && ask.chatId === chatId ? (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <ToolApproval
+            tool={ask.tool.label}
+            summary={tx('Let Neru use {tool}?', { tool: ask.tool.title })}
+            detail={JSON.stringify(ask.args, null, 2)}
+            onApprove={() => (haptic.success(), answerToolAsk('once'))}
+            onAlways={() => (haptic.success(), answerToolAsk('always'))}
+            onDeny={() => (haptic.warning(), answerToolAsk('deny'))}
+          />
+        </View>
+      ) : null}
       {editing ? (
         <View style={[s.editing, { backgroundColor: c.surface2 }]}>
           <Icon name="compose" size={16} color={c.secondary} />
-          <Text style={{ flex: 1, fontFamily: font.medium, fontSize: fs.sm, color: c.secondary }}>Editing your message</Text>
+          <Text style={{ flex: 1, fontFamily: font.medium, fontSize: fs.sm, color: c.secondary }}>{tx('Editing your message')}</Text>
           <Pressable onPress={() => (setEditing(null), setText(''))} accessibilityRole="button" hitSlop={12}>
-            <Text style={{ fontFamily: font.semibold, fontSize: fs.sm, color: c.text }}>Cancel</Text>
+            <Text style={{ fontFamily: font.semibold, fontSize: fs.sm, color: c.text }}>{tx('Cancel')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -232,7 +274,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
         onSend={onSend}
         onStop={stop}
         streaming={streaming}
-        placeholder={editing ? 'Edit your message' : 'Message Neru'}
+        placeholder={editing ? tx('Edit your message') : tx('Message Neru')}
         onAttach={() => setAttachOpen(true)}
         attachments={pending}
         onRemoveAttachment={id => setPending(p => p.filter(a => a.id !== id))}
@@ -240,7 +282,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
         tour={chatId === null}
       />
 
-      <BottomSheet open={attachOpen} onClose={() => setAttachOpen(false)} title="Add to chat">
+      <BottomSheet open={attachOpen} onClose={() => setAttachOpen(false)} onDismiss={finishAttach} title={tx('Add to chat')}>
         <View style={{ flexDirection: 'row', gap: 12, paddingBottom: 8 }}>
           {options.map(([icon, label, pick]) => (
             <Pressable key={label} onPress={() => attach(pick)} accessibilityRole="button" style={[s.tile, { backgroundColor: c.surface3 }]}>
@@ -249,6 +291,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
             </Pressable>
           ))}
         </View>
+        <ActionButton title={tx('Connectors: Gmail, GitHub, Jira…')} variant="secondary" icon="link" onPress={() => (setAttachOpen(false), router.push('/connectors'))} style={{ marginBottom: 8 }} />
       </BottomSheet>
 
       <ImageViewer images={viewer?.images.map(a => ({ uri: a.uri, name: a.name })) ?? []} index={viewer?.index ?? null} onClose={() => setViewer(null)} />

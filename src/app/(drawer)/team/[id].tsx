@@ -7,6 +7,7 @@ import { FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions,
 import { ChatScreen, VoiceComposer } from '@/components/ChatShell';
 import { IconButton } from '@/components/Icon';
 import { TeamMemberSheet } from '@/components/TeamMemberSheet';
+import { t as tx } from '@/i18n';
 import { openTeam, sendTeamMessage, stopTeam, useRemote } from '@/remote/store';
 import type { TeamMember, TeamPost } from '@/shared/types';
 import { type Colors, font, fs, useColors } from '@/theme';
@@ -27,7 +28,7 @@ const GROUP_MS = 5 * 60_000;
 /** Each member keeps one theme hue, by its place in the team. */
 const tints = (c: Colors) => [c.sage, c.link, c.codeChip, c.secondary];
 const statusColor = (c: Colors, m?: TeamMember) => (m?.status === 'working' ? c.link : m?.status === 'failed' ? c.danger : m?.status === 'stopped' ? c.codeChip : c.sage);
-const statusLabel = (m: TeamMember) => (m.status === 'working' ? 'Working' : m.status === 'failed' ? 'Failed' : m.status === 'stopped' ? 'Stopped' : 'Idle');
+const statusLabel = (m: TeamMember) => (m.status === 'working' ? tx('Working') : m.status === 'failed' ? tx('Failed') : m.status === 'stopped' ? tx('Stopped') : tx('Idle'));
 const clock = (at: number) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
 export default function TeamScreen() {
@@ -46,7 +47,7 @@ export default function TeamScreen() {
   const { width } = useWindowDimensions();
 
   useEffect(() => {
-    if (connected) openTeam(id).catch(err => toast.show({ title: 'Could not open the team', description: String(err?.message ?? err) }));
+    if (connected) openTeam(id).catch(err => toast.show({ title: tx('Could not open the team'), description: String(err?.message ?? err) }));
   }, [id, connected, toast]);
 
   const send = async (value: string) => {
@@ -58,7 +59,7 @@ export default function TeamScreen() {
       follow.current = true;
       setScrolledUp(false);
       await openTeam(id);
-    } catch (err) { toast.show({ title: 'Your message did not reach the desktop', description: String(err) }); }
+    } catch (err) { toast.show({ title: tx('Your message did not reach the desktop'), description: String(err) }); }
     finally { setSending(false); }
   };
 
@@ -92,7 +93,7 @@ export default function TeamScreen() {
     if (p.kind === 'notice' || p.kind === 'error' || p.kind === 'queued')
       return (
         <View style={[s.noteWrap, { paddingTop: top }]}>
-          <Text style={[s.note, { color: p.kind === 'error' ? c.danger : c.muted, backgroundColor: c.surface2, borderColor: c.border }]}>{p.kind === 'queued' ? `Queued · ${p.text}` : p.text}</Text>
+          <Text style={[s.note, { color: p.kind === 'error' ? c.danger : c.muted, backgroundColor: c.surface2, borderColor: c.border }]}>{p.kind === 'queued' ? `${tx('Queued')} · ${p.text}` : p.text}</Text>
         </View>
       );
     return (
@@ -110,19 +111,19 @@ export default function TeamScreen() {
   const mention = /(^|\s)@([\w-]*)$/.exec(text);
   const query = mention?.[2].toLowerCase() ?? '';
   const mentionItems = mention && task
-    ? [...members.map(m => ({ id: m.handle, kind: m.kind, label: AGENT_NAMES[m.kind] ?? m.kind, model: m.model })), { id: 'all', kind: 'all', label: 'Everyone on the task', model: '' }]
+    ? [...members.map(m => ({ id: m.handle, kind: m.kind, label: AGENT_NAMES[m.kind] ?? m.kind, model: m.model })), { id: 'all', kind: 'all', label: tx('Everyone on the task'), model: '' }]
         .filter(i => i.id.startsWith(query) || i.label.toLowerCase().startsWith(query))
     : [];
   const running = !!summary?.running || members.some(m => m.status === 'working');
-  const [teamColor, teamLabel] = !connected ? [c.danger, 'Offline'] : running ? [c.link, 'Working'] : [c.sage, 'Idle'];
+  const [teamColor, teamLabel] = !connected ? [c.danger, tx('Offline')] : running ? [c.link, tx('Working')] : [c.sage, tx('Idle')];
 
   return (
     <ChatScreen>
       <Drawer.Screen
         options={{
-          headerTitle: () => <Text numberOfLines={1} style={{ fontFamily: font.semibold, fontSize: fs.md, color: c.text, maxWidth: width - 160 }}>{summary?.title ?? task?.title ?? 'Team'}</Text>,
+          headerTitle: () => <Text numberOfLines={1} style={{ fontFamily: font.semibold, fontSize: fs.md, color: c.text, maxWidth: width - 160 }}>{summary?.title ?? task?.title ?? tx('Team')}</Text>,
           headerRight: () => (
-            <View accessible accessibilityLabel={`Team ${teamLabel}`} style={s.headerState}>
+            <View accessible accessibilityLabel={tx('Team {status}', { status: teamLabel })} style={s.headerState}>
               <StatusDot color={teamColor} pulse={connected && running} />
               <Text style={{ fontFamily: font.medium, fontSize: fs.xs, color: c.secondary }}>{teamLabel}</Text>
             </View>
@@ -132,7 +133,7 @@ export default function TeamScreen() {
       {members.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.strip, { borderBottomColor: c.border }]} contentContainerStyle={s.stripContent}>
           {members.map(m => (
-            <Pressable key={m.handle} onPress={() => setEditing(m.handle)} accessibilityRole="button" accessibilityLabel={`@${m.handle}, ${m.model || AGENT_NAMES[m.kind] || m.kind}${m.effort ? `, ${m.effort} effort` : ''}, ${statusLabel(m)}`} accessibilityHint="Change its model and reasoning effort" android_ripple={{ color: c.surface3 }} style={[s.member, { backgroundColor: c.surface2, borderColor: c.border }]}>
+            <Pressable key={m.handle} onPress={() => setEditing(m.handle)} accessibilityRole="button" accessibilityLabel={`@${m.handle}, ${m.model || AGENT_NAMES[m.kind] || m.kind}${m.effort ? `, ${tx('{effort} effort', { effort: m.effort })}` : ''}, ${statusLabel(m)}`} accessibilityHint={tx('Change its model and reasoning effort')} android_ripple={{ color: c.surface3 }} style={[s.member, { backgroundColor: c.surface2, borderColor: c.border }]}>
               <AgentLogo kind={m.kind} initial={m.handle} tint={tintOf(m.handle)} size={24} />
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                 <View style={s.memberTop}>
@@ -165,7 +166,7 @@ export default function TeamScreen() {
             </View>
           ) : null
         }
-        ListEmptyComponent={live.length ? null : <Text style={[s.empty, { color: c.muted }]}>Say what you need. Mention @{members[0]?.handle ?? 'claude'} to pick who answers, or @all for everyone.</Text>}
+        ListEmptyComponent={live.length ? null : <Text style={[s.empty, { color: c.muted }]}>{tx('Say what you need. Mention @{name} to pick who answers, or @all for everyone.', { name: members[0]?.handle ?? 'claude' })}</Text>}
         contentContainerStyle={{ paddingVertical: 16 }}
         onContentSizeChange={() => follow.current && list.current?.scrollToEnd({ animated: false })}
         onLayout={() => list.current?.scrollToEnd({ animated: false })}
@@ -174,13 +175,13 @@ export default function TeamScreen() {
         scrollEventThrottle={100}
         onScroll={({ nativeEvent: e }) => { follow.current = e.contentSize.height - e.layoutMeasurement.height - e.contentOffset.y < 100; setScrolledUp(!follow.current); }}
       />}
-      {scrolledUp ? <View style={{ position: 'absolute', bottom: 12, alignSelf: 'center', backgroundColor: c.surface3, borderRadius: 24 }}><IconButton name="chevronDown" label="Jump to latest message" color={c.text} onPress={() => { follow.current = true; setScrolledUp(false); list.current?.scrollToEnd({ animated: true }); }} /></View> : null}
+      {scrolledUp ? <View style={{ position: 'absolute', bottom: 12, alignSelf: 'center', backgroundColor: c.surface3, borderRadius: 24 }}><IconButton name="chevronDown" label={tx('Jump to latest message')} color={c.text} onPress={() => { follow.current = true; setScrolledUp(false); list.current?.scrollToEnd({ animated: true }); }} /></View> : null}
       </View>
       {mentionItems.length ? (
-        <View accessibilityRole="list" accessibilityLabel="Mention a teammate" style={[s.mentions, { backgroundColor: c.surface2, borderColor: c.border }]}>
-          <Text style={[s.mentionCaption, { color: c.muted }]}>MENTION A TEAMMATE</Text>
+        <View accessibilityRole="list" accessibilityLabel={tx('Mention a teammate')} style={[s.mentions, { backgroundColor: c.surface2, borderColor: c.border }]}>
+          <Text style={[s.mentionCaption, { color: c.muted }]}>{tx('MENTION A TEAMMATE')}</Text>
           {mentionItems.map(i => (
-            <Pressable key={i.id} onPress={() => setText(current => current.replace(/@([\w-]*)$/, `@${i.id} `))} accessibilityRole="button" accessibilityLabel={`Mention @${i.id}, ${i.label}`} android_ripple={{ color: c.surface3 }} style={s.mention}>
+            <Pressable key={i.id} onPress={() => setText(current => current.replace(/@([\w-]*)$/, `@${i.id} `))} accessibilityRole="button" accessibilityLabel={tx('Mention @{handle}, {name}', { handle: i.id, name: i.label })} android_ripple={{ color: c.surface3 }} style={s.mention}>
               <AgentLogo kind={i.kind} initial={i.id} tint={i.id === 'all' ? c.secondary : tintOf(i.id)} size={28} />
               <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
                 <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontFamily: font.semibold, fontSize: fs.sm, color: c.text }}>@{i.id}</Text>
@@ -195,12 +196,12 @@ export default function TeamScreen() {
         value={text}
         onChangeText={setText}
         onSend={send}
-        onStop={() => stopTeam(id).catch(err => toast.show({ title: 'Could not stop the team', description: String(err?.message ?? err) }))}
+        onStop={() => stopTeam(id).catch(err => toast.show({ title: tx('Could not stop the team'), description: String(err?.message ?? err) }))}
         streaming={running}
         allowSteer
-        placeholder={connected ? 'Message the team, @ to mention' : 'Your desktop is offline'}
+        placeholder={connected ? tx('Message the team, @ to mention') : tx('Your desktop is offline')}
         disabled={!connected || sending}
-        onAttach={() => toast.show({ title: 'Attach files on your desktop', description: 'Team members read your project directly.' })}
+        onAttach={() => toast.show({ title: tx('Attach files on your desktop'), description: tx('Team members read your project directly.') })}
       />
       <TeamMemberSheet taskId={id} member={members.find(m => m.handle === editing) ?? null} name={AGENT_NAMES[members.find(m => m.handle === editing)?.kind ?? ''] ?? ''} onClose={() => setEditing(null)} />
     </ChatScreen>

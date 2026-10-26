@@ -7,11 +7,12 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle, type SharedValue } from 'r
 
 import { useColors } from '@/theme';
 import { useShimmerClock } from '@/ui/thinking-shimmer';
+import { t } from '@/i18n';
 
 const BAND = 140;
 const Clock = createContext<SharedValue<number> | null>(null);
 
-export function Skeleton({ children, style, label = 'Loading' }: { children: ReactNode; style?: ViewStyle; label?: string }) {
+export function Skeleton({ children, style, label = t('Loading') }: { children: ReactNode; style?: ViewStyle; label?: string }) {
   const clock = useShimmerClock(1.6);
   return (
     <Clock.Provider value={clock}>
@@ -51,7 +52,7 @@ export function ConversationSkeleton() {
     </View>
   );
   return (
-    <Skeleton label="Loading the conversation" style={{ gap: 28, paddingVertical: 20 }}>
+    <Skeleton label={t('Loading the conversation')} style={{ gap: 28, paddingVertical: 20 }}>
       {bubble('52%')}
       {reply(['94%', '88%', '61%'])}
       {bubble('38%')}
@@ -63,7 +64,7 @@ export function ConversationSkeleton() {
 /** List rows on their way: a glyph, a title and a subtitle. */
 export function RowsSkeleton({ count = 5 }: { count?: number }) {
   return (
-    <Skeleton label="Loading sessions" style={{ gap: 6, paddingTop: 8 }}>
+    <Skeleton label={t('Loading sessions')} style={{ gap: 6, paddingTop: 8 }}>
       {Array.from({ length: count }, (_, i) => (
         <View key={i} style={s.row}>
           <Bone width={18} height={18} radius={5} />

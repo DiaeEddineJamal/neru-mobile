@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { Icon } from '@/components/Icon';
+import { t } from '@/i18n';
 import { createTeamTask, listAgentModels, listTeamAgents, useRemote } from '@/remote/store';
 import type { AgentModel, TeamAgent } from '@/shared/types';
 import { font, fs, TAP, useColors } from '@/theme';
@@ -28,6 +29,7 @@ const baseName = (path: string) => path.replace(/[\\/]+$/, '').split(/[\\/]/).po
 
 export default function NewTeamTask() {
   const c = useColors();
+  const access = ACCESS.map(a => ({ ...a, label: t(a.label), description: t(a.description) }));
   const toast = useToast();
   const connected = useRemote(s => s.status === 'connected');
   const sessions = useRemote(s => s.sessions);
@@ -70,7 +72,7 @@ export default function NewTeamTask() {
         loadModels(first);
         setPicked(current => (current.length ? current : first));
       })
-      .catch(err => { setAgents([NERU_AGENT]); toast.show({ title: 'Could not list the desktop agents', description: String(err?.message ?? err) }); });
+      .catch(err => { setAgents([NERU_AGENT]); toast.show({ title: t('Could not list the desktop agents'), description: String(err?.message ?? err) }); });
   }, [connected, toast, loadModels]);
 
   const toggle = (kind: string) => {
@@ -89,7 +91,7 @@ export default function NewTeamTask() {
       haptic.success();
       router.dismissTo(`/team/${task.id}`);
     } catch (err) {
-      toast.show({ title: 'The desktop did not start the task', description: String(err instanceof Error ? err.message : err) });
+      toast.show({ title: t('The desktop did not start the task'), description: String(err instanceof Error ? err.message : err) });
     } finally { setStarting(false); }
   };
 
@@ -108,18 +110,18 @@ export default function NewTeamTask() {
     return (
       <View style={[s.center, { backgroundColor: c.bg }]}>
         <Icon name="desktop" size={28} color={c.sage} />
-        <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.secondary, textAlign: 'center', lineHeight: 22 }}>Your desktop is offline. Open Neru on your computer to start a team task.</Text>
+        <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.secondary, textAlign: 'center', lineHeight: 22 }}>{t('Your desktop is offline. Open Neru on your computer to start a team task.')}</Text>
       </View>
     );
 
   return (
     <>
       <KeyboardAwareScrollView bottomOffset={96} style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
-        <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.secondary, lineHeight: 22 }}>The agents share one thread and work in the project you choose on your computer.</Text>
+        <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.secondary, lineHeight: 22 }}>{t('The agents share one thread and work in the project you choose on your computer.')}</Text>
 
-        <Text style={[s.section, { color: c.muted }]}>AGENTS</Text>
+        <Text style={[s.section, { color: c.muted }]}>{t('AGENTS')}</Text>
         {!agents ? (
-          <Skeleton label="Loading the desktop agents" style={{ gap: 10 }}>
+          <Skeleton label={t('Loading the desktop agents')} style={{ gap: 10 }}>
             <Bone height={64} radius={16} />
             <Bone height={64} radius={16} />
           </Skeleton>
@@ -135,15 +137,15 @@ export default function NewTeamTask() {
                   <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                     <Text numberOfLines={1} style={{ fontFamily: font.semibold, fontSize: fs.base, color: c.text }}>{a.name}</Text>
                     <Text numberOfLines={1} style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.secondary }}>
-                      {a.kind === 'neru' ? 'Your Neru model' : a.signedIn ? `Signed in${a.version ? ` · ${a.version.replace(/\s*\(.*\)$/, '')}` : ''}` : 'Not signed in'}
+                      {a.kind === 'neru' ? t('Your Neru model') : a.signedIn ? `${t('Signed in')}${a.version ? ` · ${a.version.replace(/\s*\(.*\)$/, '')}` : ''}` : t('Not signed in')}
                     </Text>
                   </View>
                   <View style={[s.check, { borderColor: on ? c.mossAction : c.muted, backgroundColor: on ? c.mossAction : 'transparent' }]}>{on ? <Icon name="check" size={14} color={c.onAction} /> : null}</View>
                 </Pressable>
                 {on && list.length ? (
-                  <Pressable onPress={() => setSheet({ model: a.kind })} accessibilityRole="button" accessibilityLabel={`${a.name} model`} style={[s.model, { borderTopColor: c.border }]}>
-                    <Text style={[s.label, { color: c.muted }]}>MODEL</Text>
-                    <Text numberOfLines={1} style={{ flex: 1, fontFamily: font.mono, fontSize: fs.sm, color: c.text, textAlign: 'right' }}>{model || 'Agent default'}</Text>
+                  <Pressable onPress={() => setSheet({ model: a.kind })} accessibilityRole="button" accessibilityLabel={t('{name} model', { name: a.name })} style={[s.model, { borderTopColor: c.border }]}>
+                    <Text style={[s.label, { color: c.muted }]}>{t('MODEL')}</Text>
+                    <Text numberOfLines={1} style={{ flex: 1, fontFamily: font.mono, fontSize: fs.sm, color: c.text, textAlign: 'right' }}>{model || t('Agent default')}</Text>
                     <Icon name="chevronDown" size={16} color={c.muted} />
                   </Pressable>
                 ) : null}
@@ -151,49 +153,49 @@ export default function NewTeamTask() {
             );
           })
         )}
-        {agents && agents.length <= 1 ? <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.muted, lineHeight: 20 }}>No agent CLIs found on the desktop. Install Claude Code, Codex, OpenCode, Gemini CLI or Cursor Agent there.</Text> : null}
+        {agents && agents.length <= 1 ? <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.muted, lineHeight: 20 }}>{t('No agent CLIs found on the desktop. Install Claude Code, Codex, OpenCode, Gemini CLI or Cursor Agent there.')}</Text> : null}
 
-        <Text style={[s.section, { color: c.muted }]}>WHERE AND HOW</Text>
-        {row('Project', where ? baseName(where) : 'No project (planning only)', () => setSheet('project'))}
-        {row('What they may do', ACCESS.find(a => a.value === mode)?.label ?? mode, () => setSheet('access'))}
+        <Text style={[s.section, { color: c.muted }]}>{t('WHERE AND HOW')}</Text>
+        {row(t('Project'), where ? baseName(where) : t('No project (planning only)'), () => setSheet('project'))}
+        {row(t('What they may do'), access.find(a => a.value === mode)?.label ?? mode, () => setSheet('access'))}
         <View style={s.chips}>
-          {[['Auto', false], ['Everyone', true]].map(([label, value]) => (
+          {[[t('Auto'), false], [t('Everyone'), true]].map(([label, value]) => (
             <Pressable key={String(label)} hitSlop={6} onPress={() => setEveryone(value as boolean)} accessibilityRole="radio" accessibilityState={{ checked: everyone === value }} style={[s.chip, { borderColor: everyone === value ? c.mossAction : c.border, backgroundColor: everyone === value ? c.mossDeep : 'transparent' }]}>
               <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.text }}>{label as string}</Text>
             </Pressable>
           ))}
-          <Text style={{ flex: 1, fontFamily: font.sans, fontSize: fs.xs, color: c.muted }}>{everyone ? 'Every agent answers in parallel' : 'The first agent answers, or whoever you @mention'}</Text>
+          <Text style={{ flex: 1, fontFamily: font.sans, fontSize: fs.xs, color: c.muted }}>{everyone ? t('Every agent answers in parallel') : t('The first agent answers, or whoever you @mention')}</Text>
         </View>
 
-        <Text style={[s.section, { color: c.muted }]}>FIRST MESSAGE</Text>
+        <Text style={[s.section, { color: c.muted }]}>{t('FIRST MESSAGE')}</Text>
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Add rate limiting to the API"
+          placeholder={t('Add rate limiting to the API')}
           placeholderTextColor={c.muted}
           multiline
-          accessibilityLabel="First message"
+          accessibilityLabel={t('First message')}
           style={[s.prompt, { backgroundColor: c.prompt, borderColor: c.border, color: c.text }]}
         />
-        <ActionButton title="Start task" icon="team" loading={starting} disabled={!text.trim() || !picked.length || !agents} onPress={start} />
+        <ActionButton title={t('Start task')} icon="team" loading={starting} disabled={!text.trim() || !picked.length || !agents} onPress={start} />
       </KeyboardAwareScrollView>
 
       <SelectSheet
         open={sheet === 'project'}
         onClose={() => setSheet(null)}
-        title="Project"
+        title={t('Project')}
         value={where}
         onChange={v => (setProject(v), setSheet(null))}
-        options={[...projects.map(p => ({ value: p, label: baseName(p), description: p })), { value: '', label: 'No project', description: 'Planning only, no folder' }]}
+        options={[...projects.map(p => ({ value: p, label: baseName(p), description: p })), { value: '', label: t('No project'), description: t('Planning only, no folder') }]}
       />
-      <SelectSheet open={sheet === 'access'} onClose={() => setSheet(null)} title="What they may do" value={mode} onChange={v => (setMode(v), setSheet(null))} options={ACCESS} />
+      <SelectSheet open={sheet === 'access'} onClose={() => setSheet(null)} title={t('What they may do')} value={mode} onChange={v => (setMode(v), setSheet(null))} options={access} />
       <SelectSheet
         open={!!modelSheet}
         onClose={() => setSheet(null)}
-        title="Model"
+        title={t('Model')}
         value={modelSheet ? (models[modelSheet] ?? '') : ''}
         onChange={v => (modelSheet && setModels(m => ({ ...m, [modelSheet]: v })), setSheet(null))}
-        options={[{ value: '', label: 'Agent default' }, ...(modelSheet ? modelLists[modelSheet] ?? [] : []).map(m => ({ value: m.id, label: m.label === m.id ? m.id : m.label, description: m.label === m.id ? undefined : m.id }))]}
+        options={[{ value: '', label: t('Agent default') }, ...(modelSheet ? modelLists[modelSheet] ?? [] : []).map(m => ({ value: m.id, label: m.label === m.id ? m.id : m.label, description: m.label === m.id ? undefined : m.id }))]}
       />
     </>
   );

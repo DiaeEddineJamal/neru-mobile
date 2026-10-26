@@ -11,6 +11,7 @@ import { font, fs, useColors, useScheme } from '@/theme';
 import { Button, SwapIcon } from '@/ui/button';
 import { tokenize, vscode } from '@/ui/highlight';
 import { Loader } from '@/ui/loader';
+import { t as tx } from '@/i18n';
 
 type Props = { code: string; lang: string; /** Fence still open mid-stream: shows "Writing" and follows the tail. */ streaming?: boolean };
 
@@ -42,9 +43,9 @@ export function CodeBlock({ code, lang, streaming = false }: Props) {
         <Text style={[s.lang, { color: c.muted }]}>{lang || 'text'}</Text>
         <View style={s.status}>
           {streaming ? <Loader size={12} color={statusColor} /> : <Icon name="check" size={12} color={statusColor} />}
-          <Text style={[s.statusText, { color: statusColor }]}>{streaming ? 'Writing' : 'Ready'}</Text>
+          <Text style={[s.statusText, { color: statusColor }]}>{streaming ? tx('Writing') : tx('Ready')}</Text>
         </View>
-        <Button label={copied ? 'Copied' : 'Copy code'} onPress={copy} pressScale={0.9} hitSlop={10} style={{ width: 28, height: 28, borderRadius: 14 }}>
+        <Button label={copied ? tx('Copied') : tx('Copy code')} onPress={copy} pressScale={0.9} hitSlop={10} style={{ width: 28, height: 28, borderRadius: 14 }}>
           <SwapIcon swapKey={copied ? 'check' : 'copy'} size={16}>
             <Icon name={copied ? 'check' : 'copy'} size={16} color={c.muted} />
           </SwapIcon>

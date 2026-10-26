@@ -28,6 +28,7 @@ import { font, fs, TAP, useColors } from '@/theme';
 import { RollText } from '@/ui/action-swap';
 import { AgentDisclosure, DisclosureChevron } from '@/ui/agent-disclosure';
 import { EASE_OUT, SPRING_LAYOUT, SPRING_SWAP } from '@/ui/motion';
+import { t as tx } from '@/i18n';
 
 export type Todo = { content: string; status: 'pending' | 'in_progress' | 'completed' };
 
@@ -149,7 +150,7 @@ function Row({ todo }: { todo: Todo }) {
   const line = useAnimatedStyle(() => ({ opacity: strike.get(), transform: [{ scaleX: strike.get() }] }));
   const color = todo.status === 'in_progress' ? c.text : c.muted;
   return (
-    <View accessible accessibilityLabel={`${label[todo.status]}: ${todo.content}`} style={{ minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 4 }}>
+    <View accessible accessibilityLabel={`${tx(label[todo.status])}: ${todo.content}`} style={{ minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 4 }}>
       <StatusIcon status={todo.status} />
       <View style={{ flexShrink: 1, minWidth: 0 }}>
         <Text numberOfLines={1} style={{ fontFamily: font.sans, fontSize: fs.sm, lineHeight: 20, color, opacity: todo.status === 'in_progress' ? 1 : 0.8 }}>{todo.content}</Text>
@@ -177,16 +178,16 @@ export function TodoList({ todos }: { todos: Todo[] }) {
   }, [todos.length, reduce]);
 
   return (
-    <View accessibilityLabel="Agent task list" style={{ width: '100%', overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: c.border }}>
+    <View accessibilityLabel={tx('Agent task list')} style={{ width: '100%', overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: c.border }}>
       <Pressable
         onPress={() => setOpen(!open)}
         accessibilityRole="button"
-        accessibilityLabel={`To-dos, ${completed} of ${todos.length} tasks completed`}
+        accessibilityLabel={tx('To-dos, {completed} of {total} tasks completed', { completed, total: todos.length })}
         accessibilityState={{ expanded: open }}
         style={{ height: TAP, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 }}
       >
         <HeaderIcon complete={allComplete} />
-        <Text numberOfLines={1} style={{ flex: 1, fontFamily: font.medium, fontSize: fs.sm, color: c.text }}>To-dos</Text>
+        <Text numberOfLines={1} style={{ flex: 1, fontFamily: font.medium, fontSize: fs.sm, color: c.text }}>{tx('To-dos')}</Text>
         <View style={{ flexDirection: 'row' }}>
           <RollText value={String(completed)} style={{ fontFamily: font.medium, fontSize: fs.xs, fontVariant: ['tabular-nums'], color: allComplete ? c.sage : c.muted }}>{completed}</RollText>
           <Text style={{ fontFamily: font.medium, fontSize: fs.xs, fontVariant: ['tabular-nums'], color: allComplete ? c.sage : c.muted }}>/{todos.length}</Text>
@@ -205,7 +206,7 @@ export function TodoList({ todos }: { todos: Todo[] }) {
               ))}
             </LayoutAnimationConfig>
           ) : (
-            <Text style={{ paddingHorizontal: 6, paddingVertical: 8, fontFamily: font.sans, fontSize: fs.sm, color: c.muted }}>No tasks yet</Text>
+            <Text style={{ paddingHorizontal: 6, paddingVertical: 8, fontFamily: font.sans, fontSize: fs.sm, color: c.muted }}>{tx('No tasks yet')}</Text>
           )}
         </ScrollView>
       </AgentDisclosure>

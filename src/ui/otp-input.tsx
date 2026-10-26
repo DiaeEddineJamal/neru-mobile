@@ -21,6 +21,7 @@ import Animated, {
 
 import { font, useColors } from '@/theme';
 import { EASE_OUT } from '@/ui/motion';
+import { t } from '@/i18n';
 
 const ROLL = { duration: 220, easing: EASE_OUT };
 const digitIn: EntryExitAnimationFunction = () => {
@@ -67,7 +68,7 @@ export function OtpInput({ length = 6, value, onChange, onComplete }: Props) {
         autoComplete="one-time-code"
         maxLength={length}
         caretHidden
-        accessibilityLabel="One-time passcode"
+        accessibilityLabel={t('One-time passcode')}
         accessibilityValue={{ text: value.split('').join(' ') }}
         selectionColor="transparent"
         style={[StyleSheet.absoluteFill, s.hidden, { color: c.bg }]}

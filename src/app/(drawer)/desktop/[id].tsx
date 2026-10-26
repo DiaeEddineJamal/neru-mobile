@@ -1,11 +1,20 @@
+import { mergeAttachments, useComposerDraft } from '@/drafts';
 import * as Clipboard from 'expo-clipboard';
 import { haptic } from '@/haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { cameraChat, pickPhotos, recoverPhoto, takePhoto, toPhoneImages } from '@/attach';
+import { Icon, type IconName } from '@/components/Icon';
+import { t as tx } from '@/i18n';
 import { answerApproval, answerQuestion, openSession, sendPrompt, stopSession, useRemote, type LiveTool } from '@/remote/store';
+import type { Attachment } from '@/store';
+import { BottomSheet } from '@/ui/bottom-sheet';
+import { DenySheet } from '@/ui/deny-sheet';
+import { ImageViewer } from '@/ui/image-viewer';
+import { ReviewCard } from '@/ui/review-card';
 import type { AgentQuestion, ChatEntry } from '@/shared/types';
 import { ActionButton } from '@/ui/button-base';
 import { ConversationSkeleton } from '@/ui/skeleton';
@@ -49,7 +58,7 @@ function QuestionCard({ questions, onSubmit }: { questions: AgentQuestion[]; onS
           ))}
         </View>
       ))}
-      <ActionButton title="Send answers" icon="send" disabled={picks.some(p => !p.length)} onPress={() => onSubmit(picks.map(p => p.join(', ')))} />
+      <ActionButton title={tx('Send answers')} icon="send" disabled={picks.some(p => !p.length)} onPress={() => onSubmit(picks.map(p => p.join(', ')))} />
     </View>
   );
 }
@@ -62,17 +71,30 @@ export default function DesktopSession() {
   const view = useRemote(st => st.views[id]);
   const connected = useRemote(st => st.status === 'connected');
   const list = useRef<FlatList<Row>>(null);
-  const [text, setText] = useState('');
+  const { text, setText, attachments: photos, setAttachments: setPhotos } = useComposerDraft(`desktop:${id}`);
   const [sending, setSending] = useState(false);
   const [scrolledUp, setScrolledUp] = useState(false);
   const follow = useRef(true);
   const { width, height } = useWindowDimensions();
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [denyOpen, setDenyOpen] = useState(false);
+  const [viewer, setViewer] = useState<number | null>(null);
+
+  // Neru was killed while the camera was open for this session: put the photo back in the composer.
+  useEffect(() => {
+    if (cameraChat() === `desktop:${id}`) void recoverPhoto().then(p => p.length && setPhotos(x => mergeAttachments(x, p)));
+  }, [id, setPhotos]);
+  const attach = async (pick: () => Promise<Attachment[]>) => {
+    setAttachOpen(false);
+    const picked = await pick();
+    if (picked.length) setPhotos(p => mergeAttachments(p, picked));
+  };
 
   useEffect(() => {
-    if (connected) openSession(id).catch(err => toast.show({ title: 'Could not open the session', description: String(err.message ?? err) }));
+    if (connected) openSession(id).catch(err => toast.show({ title: tx('Could not open the session'), description: String(err.message ?? err) }));
   }, [id, connected, toast]);
 
-  if (!session) return <Text style={[s.empty, { color: c.muted }]}>This session is not on your desktop anymore.</Text>;
+  if (!session) return <Text style={[s.empty, { color: c.muted }]}>{tx('This session is not on your desktop anymore.')}</Text>;
 
   const rows: Row[] = [...(view?.entries ?? []).map(e => ({ key: e.id, kind: 'entry' as const, entry: e })), ...(view?.live ? [{ key: 'live', kind: 'live' as const }] : [])];
   const pending = view?.pending;
@@ -80,18 +102,20 @@ export default function DesktopSession() {
   const run = (p: Promise<unknown>, failure: string) => p.catch(err => toast.show({ title: failure, description: String(err?.message ?? err) }));
   const answer = (approve: boolean, always = false) => {
     if (approve) haptic.success(); else haptic.warning();
-    run(answerApproval(id, approve, always), 'Your answer did not reach the desktop');
+    run(answerApproval(id, approve, always), tx('Your answer did not reach the desktop'));
   };
   const send = async (value: string) => {
-    if (!value.trim() || sending) return;
+    if ((!value.trim() && !photos.length) || sending) return;
     setSending(true);
     try {
-      await sendPrompt(id, value.trim());
+      const sent = photos;
+      await sendPrompt(id, value.trim() || 'Look at this photo.', await toPhoneImages(sent));
       setText(current => current.trim() === value.trim() ? '' : current);
+      setPhotos(p => p.filter(x => !sent.includes(x)));
       follow.current = true;
       setScrolledUp(false);
       await openSession(id);
-    } catch (err) { toast.show({ title: 'Your message did not reach the desktop', description: String(err) }); }
+    } catch (err) { toast.show({ title: tx('Your message did not reach the desktop'), description: String(err) }); }
     finally { setSending(false); }
   };
 
@@ -109,7 +133,7 @@ export default function DesktopSession() {
           {live.tools.map(t => <ToolResult key={t.id} {...splitStep(t.label)} status={toolStatus(t.status)} />)}
           {live.text ? <AssistantMessage text={live.text} streaming onCopy={() => Clipboard.setStringAsync(live.text)} /> : null}
           {/* The desktop's status line: an orb for what the agent is doing right now. */}
-          <ThinkingShimmer {...(live.tools.some(t => t.status === 'running') ? { state: 'weaving', label: 'Working' } : live.text ? { state: 'composing', label: 'Composing' } : live.reasoning ? { state: 'solving', label: 'Reasoning' } : { state: 'working', label: 'Thinking' })} />
+          <ThinkingShimmer {...(live.tools.some(t => t.status === 'running') ? { state: 'weaving', label: tx('Working') } : live.text ? { state: 'composing', label: tx('Composing') } : live.reasoning ? { state: 'solving', label: tx('Reasoning') } : { state: 'working', label: tx('Thinking') })} />
         </View>
       );
     }
@@ -140,8 +164,8 @@ export default function DesktopSession() {
         }}
       />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
-        <Text style={{ fontFamily: font.medium, fontSize: fs.xs, color: c.muted }}>DESKTOP · CODE</Text>
-        <AnimatedBadge status={!connected ? 'failed' : session.waiting ? 'waiting' : session.running ? 'running' : 'done'} label={!connected ? 'Offline' : session.waiting ? 'Needs you' : session.running ? 'Running' : 'Idle'} />
+        <Text style={{ fontFamily: font.medium, fontSize: fs.xs, color: c.muted }}>{tx('DESKTOP · CODE')}</Text>
+        <AnimatedBadge status={!connected ? 'failed' : session.waiting ? 'waiting' : session.running ? 'running' : 'done'} label={!connected ? tx('Offline') : session.waiting ? tx('Needs you') : session.running ? tx('Running') : tx('Idle')} />
       </View>
       <View style={{ flex: 1 }}>
       {!view && connected ? <ConversationSkeleton /> : (
@@ -164,28 +188,29 @@ export default function DesktopSession() {
         }}
       />
       )}
-      {scrolledUp ? <View style={{ position: 'absolute', bottom: 12, alignSelf: 'center', borderRadius: 24, backgroundColor: c.surface3 }}><IconButton name="chevronDown" label="Jump to latest message" color={c.text} onPress={() => { follow.current = true; setScrolledUp(false); list.current?.scrollToEnd({ animated: true }); }} /></View> : null}
+      {scrolledUp ? <View style={{ position: 'absolute', bottom: 12, alignSelf: 'center', borderRadius: 24, backgroundColor: c.surface3 }}><IconButton name="chevronDown" label={tx('Jump to latest message')} color={c.text} onPress={() => { follow.current = true; setScrolledUp(false); list.current?.scrollToEnd({ animated: true }); }} /></View> : null}
       </View>
 
       {pending ? (
         <ScrollView style={{ maxHeight: height * 0.35 }} contentContainerStyle={[s.block, { paddingVertical: 8 }]} keyboardShouldPersistTaps="handled">
           {pending.kind === 'question' ? (
             pending.questions?.length ? (
-              <QuestionCard questions={pending.questions} onSubmit={answers => run(answerQuestion(id, answers), 'Your answer did not reach the desktop')} />
+              <QuestionCard questions={pending.questions} onSubmit={answers => run(answerQuestion(id, answers), tx('Your answer did not reach the desktop'))} />
             ) : (
-              <Text style={[s.note, { color: c.secondary }]}>Neru is asking you a question. Answer it on your desktop.</Text>
+              <Text style={[s.note, { color: c.secondary }]}>{tx('Neru is asking you a question. Answer it on your desktop.')}</Text>
             )
           ) : (
             <>
               {pending.diff && pending.kind === 'edit' ? (
                 <FileDiffCard file={pending.label} added={pending.diff.split('\n').filter(l => l.startsWith('+')).length} removed={pending.diff.split('\n').filter(l => l.startsWith('-')).length} onPress={() => router.push(`/diff/${id}/pending`)} />
               ) : null}
+              {pending.review ? <ReviewCard review={pending.review} /> : null}
               <ToolApproval
                 tool={pending.kind === 'plan' ? 'Plan' : pending.kind[0].toUpperCase() + pending.kind.slice(1)}
                 summary={pending.label}
                 detail={pending.kind === 'edit' ? '' : (pending.diff ?? '')}
                 onApprove={() => answer(true)}
-                onDeny={() => answer(false)}
+                onDeny={() => setDenyOpen(true)}
                 onAlways={pending.kind === 'plan' ? undefined : () => answer(true, true)}
               />
             </>
@@ -197,13 +222,37 @@ export default function DesktopSession() {
         value={text}
         onChangeText={setText}
         onSend={send}
-        onStop={() => run(stopSession(id), 'Could not stop the session')}
+        onStop={() => run(stopSession(id), tx('Could not stop the session'))}
         streaming={session.running}
         allowSteer
-        placeholder={connected ? 'Reply to Neru on your desktop' : 'Your desktop is offline'}
+        placeholder={connected ? tx('Reply to Neru on your desktop') : tx('Your desktop is offline')}
         disabled={!connected || sending}
-        onAttach={() => toast.show({ title: 'Attach files on your desktop', description: 'Sessions there read your project directly.' })}
+        onAttach={() => setAttachOpen(true)}
+        attachments={photos}
+        onRemoveAttachment={pid => setPhotos(p => p.filter(a => a.id !== pid))}
+        onOpenImage={pid => setViewer(Math.max(0, photos.findIndex(a => a.id === pid)))}
       />
+      <BottomSheet open={attachOpen} onClose={() => setAttachOpen(false)} title={tx('Show your desktop')}>
+        <View style={{ flexDirection: 'row', gap: 12, paddingBottom: 8 }}>
+          {([['camera', tx('Camera'), () => takePhoto(`desktop:${id}`)], ['photo', tx('Photos'), () => pickPhotos(`desktop:${id}`)]] as [IconName, string, () => Promise<Attachment[]>][]).map(([icon, label, pick]) => (
+            <Pressable key={label} onPress={() => attach(pick)} accessibilityRole="button" style={[s.tile, { backgroundColor: c.surface3 }]}>
+              <Icon name={icon} size={24} color={c.text} />
+              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.text }}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.muted, lineHeight: 20, paddingBottom: 8 }}>{tx('A whiteboard sketch, a bug on another screen, an error on a monitor: Neru on your desktop sees the photo with your message.')}</Text>
+      </BottomSheet>
+      <DenySheet
+        open={denyOpen}
+        onClose={() => setDenyOpen(false)}
+        onDeny={(reason, remember) => {
+          setDenyOpen(false);
+          haptic.warning();
+          run(answerApproval(id, false, false, { reason, remember }), tx('Your answer did not reach the desktop'));
+        }}
+      />
+      <ImageViewer images={photos.map(a => ({ uri: a.uri, name: a.name }))} index={viewer} onClose={() => setViewer(null)} />
     </ChatScreen>
   );
 }
@@ -213,4 +262,5 @@ const s = StyleSheet.create({
   card: { padding: 16, gap: 16, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
   note: { fontFamily: font.sans, fontSize: fs.sm, paddingHorizontal: 20, textAlign: 'center', lineHeight: 20 },
   empty: { padding: 24, fontFamily: font.sans, fontSize: fs.base },
+  tile: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20, borderRadius: 16 },
 });

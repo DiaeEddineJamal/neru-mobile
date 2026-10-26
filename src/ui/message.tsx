@@ -10,6 +10,7 @@ import { Markdown } from '@/components/Markdown';
 import { useColors } from '@/theme';
 import { Button, SwapIcon } from '@/ui/button';
 import { EASE_OUT } from '@/ui/motion';
+import { t as tx } from '@/i18n';
 
 const actionsIn: EntryExitAnimationFunction = () => {
   'worklet';
@@ -37,7 +38,7 @@ export function AssistantMessage({ text, streaming, onCopy, onRetry }: Props) {
   };
 
   return (
-    <View accessibilityLabel="assistant message" accessibilityState={{ busy: streaming }} style={{ width: '100%' }}>
+    <View accessibilityLabel={tx('assistant message')} accessibilityState={{ busy: streaming }} style={{ width: '100%' }}>
       <Markdown text={text} />
       <LayoutAnimationConfig skipEntering>
         {!streaming && text ? (
@@ -46,13 +47,13 @@ export function AssistantMessage({ text, streaming, onCopy, onRetry }: Props) {
             exiting={FadeOut.duration(reduce ? 120 : 220)}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 12 }} // beUI gap-0.5; widened so the 48dp hit areas don't overlap
           >
-            <Button label={copied ? 'Copied' : 'Copy response'} onPress={copy} pressScale={0.9} hitSlop={10} style={{ width: 28, height: 28, borderRadius: 6 }}>
+            <Button label={copied ? tx('Copied') : tx('Copy response')} onPress={copy} pressScale={0.9} hitSlop={10} style={{ width: 28, height: 28, borderRadius: 6 }}>
               <SwapIcon swapKey={copied ? 'check' : 'copy'} size={16}>
                 <Icon name={copied ? 'check' : 'copy'} size={16} color={c.muted} />
               </SwapIcon>
             </Button>
             {onRetry ? (
-              <Button label="Retry response" onPress={onRetry} pressScale={0.9} hitSlop={10} style={{ width: 28, height: 28, borderRadius: 6 }}>
+              <Button label={tx('Retry response')} onPress={onRetry} pressScale={0.9} hitSlop={10} style={{ width: 28, height: 28, borderRadius: 6 }}>
                 <Icon name="retry" size={16} color={c.muted} />
               </Button>
             ) : null}

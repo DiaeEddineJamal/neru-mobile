@@ -18,6 +18,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { font, fs } from '@/theme';
 import { Button } from '@/ui/button';
 import { EASE_DRAWER, EASE_OUT, SPRING_LAYOUT } from '@/ui/motion';
+import { t } from '@/i18n';
 
 export type ImageViewerImage = { uri: string; name?: string };
 type Props = { images: ImageViewerImage[]; index: number | null; onClose: () => void };
@@ -184,12 +185,12 @@ export function ImageViewer({ images, index, onClose }: Props) {
     <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <GestureHandlerRootView style={s.fill}>
         <Animated.View style={[StyleSheet.absoluteFill, s.scrim, scrimStyle]} />
-        <View accessibilityViewIsModal accessibilityLabel="Image viewer" style={[s.fill, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
+        <View accessibilityViewIsModal accessibilityLabel={t('Image viewer')} style={[s.fill, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
           <Animated.View style={[s.bar, s.header, chromeStyle]}>
             <Text accessibilityLiveRegion="polite" style={s.counter}>
               {page + 1} / {images.length}
             </Text>
-            <Control icon="close" label="Close viewer" onPress={onClose} />
+            <Control icon="close" label={t('Close viewer')} onPress={onClose} />
           </Animated.View>
 
           <GestureDetector gesture={gesture}>
@@ -201,7 +202,7 @@ export function ImageViewer({ images, index, onClose }: Props) {
               </Animated.View>
               <Control
                 icon={zoomed ? 'minus' : 'plus'}
-                label={zoomed ? 'Zoom out' : 'Zoom in'}
+                label={zoomed ? t('Zoom out') : t('Zoom in')}
                 onPress={() => (zoomed ? resetZoom() : zoomTo(ZOOM))}
                 style={s.zoom}
               />
@@ -209,11 +210,11 @@ export function ImageViewer({ images, index, onClose }: Props) {
           </GestureDetector>
 
           <Animated.View style={[s.bar, s.footer, chromeStyle]}>
-            {images.length > 1 ? <Control icon="chevronLeft" label="Previous image" disabled={page <= 0} onPress={() => (resetZoom(), go(page - 1))} /> : <View />}
+            {images.length > 1 ? <Control icon="chevronLeft" label={t('Previous image')} disabled={page <= 0} onPress={() => (resetZoom(), go(page - 1))} /> : <View />}
             <Text numberOfLines={1} accessibilityLiveRegion="polite" style={s.caption}>
               {current?.name ?? ''}
             </Text>
-            {images.length > 1 ? <Control icon="chevronRight" label="Next image" disabled={page >= last} onPress={() => (resetZoom(), go(page + 1))} /> : <View />}
+            {images.length > 1 ? <Control icon="chevronRight" label={t('Next image')} disabled={page >= last} onPress={() => (resetZoom(), go(page + 1))} /> : <View />}
           </Animated.View>
         </View>
       </GestureHandlerRootView>
@@ -227,7 +228,7 @@ function Page({ uri, name, width, active, scale, tx, ty }: { uri: string; name?:
   return (
     <View style={[s.page, { width }]}>
       <Animated.View style={[s.fill, zoom]}>
-        <Image source={{ uri }} style={s.fill} contentFit="contain" accessibilityLabel={name ?? 'Image'} accessibilityIgnoresInvertColors onError={() => setFailed(true)} />
+        <Image source={{ uri }} style={s.fill} contentFit="contain" accessibilityLabel={name ?? t('Image')} accessibilityIgnoresInvertColors onError={() => setFailed(true)} />
       </Animated.View>
       {failed ? (
         <Text accessibilityRole="alert" style={[StyleSheet.absoluteFill, s.failed]}>

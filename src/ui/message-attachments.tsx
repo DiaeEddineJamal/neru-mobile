@@ -8,6 +8,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { font, useColors } from '@/theme';
 import { Button } from '@/ui/button';
+import { t } from '@/i18n';
 
 export type MessageAttachment = { id: string; kind: 'image' | 'file'; name: string; uri: string };
 
@@ -50,7 +51,7 @@ export function MessageAttachments({ items, onOpenImage }: { items: MessageAttac
       {images.length ? (
         <View style={s.grid}>
           {images.map(a => (
-            <Button key={a.id} label={`Open ${a.name}`} onPress={() => onOpenImage(a.id)} pressScale={0.98} hitSlop={0}>
+            <Button key={a.id} label={t('Open {name}', { name: a.name })} onPress={() => onOpenImage(a.id)} pressScale={0.98} hitSlop={0}>
               <Image
                 source={{ uri: a.uri }}
                 contentFit="cover"
@@ -63,7 +64,7 @@ export function MessageAttachments({ items, onOpenImage }: { items: MessageAttac
         </View>
       ) : null}
       {files.map(a => (
-        <View key={a.id} accessible accessibilityLabel={`Attached file ${a.name}`}>
+        <View key={a.id} accessible accessibilityLabel={t('Attached file {name}', { name: a.name })}>
           <DocCard name={a.name} />
         </View>
       ))}

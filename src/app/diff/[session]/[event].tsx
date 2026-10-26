@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { Text } from 'react-native';
 
 import { useRemote } from '@/remote/store';
+import { t } from '@/i18n';
 import { font, useColors } from '@/theme';
 import { FileDiffView } from '@/ui/file-diff';
 
@@ -19,7 +20,7 @@ export default function DiffScreen() {
         ? { file: file.path, patch: file.content.split('\n').map(l => `+${l}`).join('\n') }
         : null;
 
-  if (!diff) return <Text style={{ color: c.muted, padding: 24, fontFamily: font.sans }}>These changes are no longer available.</Text>;
+  if (!diff) return <Text style={{ color: c.muted, padding: 24, fontFamily: font.sans }}>{t('These changes are no longer available.')}</Text>;
   return (
     <>
       <Stack.Screen options={{ title: diff.file.split(/[\\/]/).pop() }} />

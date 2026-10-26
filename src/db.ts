@@ -14,13 +14,17 @@ db.execSync(`
   CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   PRAGMA foreign_keys = ON;
 `);
+// Added later: the connector tools a reply used. Older databases get the column on first launch.
+if (!db.getAllSync<{ name: string }>('PRAGMA table_info(messages)').some(c => c.name === 'tools')) db.execSync('ALTER TABLE messages ADD COLUMN tools TEXT');
 
 export type Attachment = { id: string; kind: 'image' | 'file'; name: string; uri: string; mime: string; base64?: string; /** A text file's contents, sent inline. */ text?: string };
-export type Message = { id: string; role: 'user' | 'assistant'; text: string; reasoning?: string; attachments?: Attachment[]; model?: string; error?: string; createdAt: number };
+/** A connector tool a reply called: which one, where, and how it went. */
+export type ToolStep = { name: string; label: string; status: 'running' | 'done' | 'failed' | 'denied' };
+export type Message = { id: string; role: 'user' | 'assistant'; text: string; reasoning?: string; attachments?: Attachment[]; model?: string; error?: string; tools?: ToolStep[]; createdAt: number };
 export type Chat = { id: string; title: string; starred: boolean; updatedAt: number; messages: Message[] };
 
 type ChatRow = { id: string; title: string; starred: number; updated_at: number };
-type MessageRow = { id: string; chat_id: string; role: 'user' | 'assistant'; text: string; reasoning: string | null; attachments: string | null; model: string | null; error: string | null; created_at: number };
+type MessageRow = { id: string; chat_id: string; role: 'user' | 'assistant'; text: string; reasoning: string | null; attachments: string | null; model: string | null; error: string | null; tools: string | null; created_at: number };
 
 export function loadChats(): Chat[] {
   const chats = db.getAllSync<ChatRow>('SELECT * FROM chats ORDER BY updated_at DESC');
@@ -37,6 +41,7 @@ export function loadChats(): Chat[] {
       attachments: r.attachments ? JSON.parse(r.attachments) : undefined,
       model: r.model ?? undefined,
       error: r.error ?? undefined,
+      tools: r.tools ? JSON.parse(r.tools) : undefined,
       createdAt: r.created_at,
     });
     byChat.set(r.chat_id, list);
@@ -51,8 +56,8 @@ export function saveChat(c: Chat) {
 export function saveMessage(chatId: string, m: Message) {
   const attachments = m.attachments?.length ? JSON.stringify(m.attachments.map(({ base64: _b, ...a }) => a)) : null;
   db.runSync(
-    'INSERT INTO messages (id, chat_id, role, text, reasoning, attachments, model, error, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET text = excluded.text, reasoning = excluded.reasoning, model = excluded.model, error = excluded.error',
-    [m.id, chatId, m.role, m.text, m.reasoning ?? null, attachments, m.model ?? null, m.error ?? null, m.createdAt],
+    'INSERT INTO messages (id, chat_id, role, text, reasoning, attachments, model, error, tools, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET text = excluded.text, reasoning = excluded.reasoning, model = excluded.model, error = excluded.error, tools = excluded.tools',
+    [m.id, chatId, m.role, m.text, m.reasoning ?? null, attachments, m.model ?? null, m.error ?? null, m.tools?.length ? JSON.stringify(m.tools) : null, m.createdAt],
   );
 }
 

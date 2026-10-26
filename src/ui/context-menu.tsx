@@ -19,6 +19,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { Icon, type IconName } from '@/components/Icon';
 import { font, fs, TAP, useColors } from '@/theme';
 import { EASE_OUT, SPRING_PANEL } from '@/ui/motion';
+import { t as tx } from '@/i18n';
 
 const VIEWPORT_PADDING = 8;
 const LONG_PRESS_DELAY = 520;
@@ -116,7 +117,7 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
       <GestureDetector gesture={longPress}>
         <Animated.View
           ref={anchor}
-          accessibilityActions={disabled ? undefined : [{ name: 'longpress', label: 'Show menu' }]}
+          accessibilityActions={disabled ? undefined : [{ name: 'longpress', label: tx('Show menu') }]}
           onAccessibilityAction={() =>
             anchor.current?.measureInWindow((x, y, aw, ah) => openAt({ x: x + Math.min(24, aw / 2), y: y + ah / 2 }))
           }
@@ -127,7 +128,7 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
       </GestureDetector>
       {point ? (
         <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close menu" />
+          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel={tx('Close menu')} />
           {size ? (
             <View style={[s.portal, { left, top }]}>
               <Animated.View style={[s.clip, clipStyle]}>

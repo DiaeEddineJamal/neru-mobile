@@ -5,6 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useSyncExternalStore } from 'react';
 
 import { localModel, localModels, modelUrl, sizeLabel, type LocalModel } from '@/local/catalog';
+import { t } from '@/i18n';
 
 export type Download = { phase: 'available' | 'downloading' | 'paused' | 'verifying' | 'ready' | 'error'; progress: number; error?: string; note?: string };
 
@@ -22,16 +23,17 @@ const native = requireOptionalNativeModule<Native>('NeruLocalAi');
 // JS timers stop while Neru is in the background; the native wait keeps retries going there.
 const sleep = (ms: number) => (native?.wait ? native.wait(ms) : new Promise<void>(r => setTimeout(r, ms)));
 class Transient extends Error {}
+class Failed extends Error {}
 /** A gated model: 401 means sign in to Hugging Face, 403 means accept the model's license there. */
 export class GatedError extends Error {
-  constructor(readonly status: 401 | 403) { super(status === 401 ? 'This model needs a Hugging Face account. Add your access token under Hugging Face below, then download again.' : 'Accept this model’s license on Hugging Face to download it.'); }
+  constructor(readonly status: 401 | 403) { super(status === 401 ? t('This model needs a Hugging Face account. Add your access token under Hugging Face below, then download again.') : t('Accept this model’s license on Hugging Face to download it.')); }
 }
 let states: Record<string, Download> = {};
 const listeners = new Set<() => void>();
 const tasks = new Map<string, FS.DownloadResumable>();
 const active = new Set<string>();
 const directory = () => {
-  if (!FS.documentDirectory) throw new Error('Model storage is unavailable on this platform.');
+  if (!FS.documentDirectory) throw new Error(t('Model storage is unavailable on this platform.'));
   return `${FS.documentDirectory}models/`;
 };
 const uriOf = (m: LocalModel) => `${directory()}${m.file}`;
@@ -45,8 +47,8 @@ const shade = (id: string, d: Download) => {
   const m = localModel(id);
   if (!native?.downloadProgress || !m || !active.has(id)) return;
   const percent = Math.floor(d.progress * 100);
-  const [title, text, bar] = d.phase === 'verifying' ? [`Checking ${m.name}`, 'Making sure every byte arrived intact', -1]
-    : d.phase === 'downloading' ? [`Downloading ${m.name}`, d.note ?? `${percent}% · ${sizeLabel(d.progress * m.bytes)} of ${sizeLabel(m.bytes)}`, percent]
+  const [title, text, bar] = d.phase === 'verifying' ? [t('Checking {name}', { name: m.name }), t('Making sure every byte arrived intact'), -1]
+    : d.phase === 'downloading' ? [t('Downloading {name}', { name: m.name }), d.note ?? t('{percent}% · {done} of {total}', { percent, done: sizeLabel(d.progress * m.bytes), total: sizeLabel(m.bytes) }), percent]
     : [];
   if (title === undefined || `${title}${text}` === shown) return;
   shown = `${title}${text}`;
@@ -66,22 +68,22 @@ export async function refreshDownloads() {
 }
 export async function installedUri(id: string) {
   const m = localModel(id);
-  if (!m) throw new Error('This on-device model is not in the catalog.');
+  if (!m) throw new Error(t('This on-device model is not in the catalog.'));
   const info = await FS.getInfoAsync(uriOf(m));
-  if (!info.exists || info.size !== m.bytes) throw new Error('Download this model in Settings → Pocket Lab first.');
+  if (!info.exists || info.size !== m.bytes) throw new Error(t('Download this model in Settings → Pocket Lab first.'));
   return uriOf(m);
 }
 export const deviceMemoryGB = Device.totalMemory ? Device.totalMemory / 1e9 : null;
 export const fitsMemory = (m: LocalModel) => deviceMemoryGB === null || Math.round(deviceMemoryGB) >= m.memory;
 
 export async function downloadModel(m: LocalModel) {
-  if (active.size) throw new Error('Finish or pause the current download first.');
-  if (!fitsMemory(m)) throw new Error(`Google recommends at least ${m.memory} GB RAM for this model. Choose a smaller model.`);
+  if (active.size) throw new Error(t('Finish or pause the current download first.'));
+  if (!fitsMemory(m)) throw new Error(t('Google recommends at least {gb} GB RAM for this model. Choose a smaller model.', { gb: m.memory }));
   const verify = native;
-  if (!verify) throw new Error('Install the Neru Android build with on-device model support first.');
+  if (!verify) throw new Error(t('Install the Neru Android build with on-device model support first.'));
   active.add(m.id);
   shown = '';
-  native?.downloadStart?.(`Downloading ${m.name}`, 'Starting…');
+  native?.downloadStart?.(t('Downloading {name}', { name: m.name }), t('Starting…'));
   change(m.id, { phase: 'downloading', progress: 0 });
   try {
     await FS.makeDirectoryAsync(directory(), { intermediates: true });
@@ -92,23 +94,23 @@ export async function downloadModel(m: LocalModel) {
     if (!hash) {
       const metadata = await fetch(`https://huggingface.co/api/models/${m.repo}/revision/${m.revision}?blobs=true`, { headers });
       if (metadata.status === 401 || metadata.status === 403) throw new GatedError(token ? metadata.status : 401);
-      if (!metadata.ok) throw new Error(`Model information could not be fetched (${metadata.status}).`);
+      if (!metadata.ok) throw new Error(t('Model information could not be fetched ({status}).', { status: metadata.status }));
       const body = await metadata.json() as { siblings: { rfilename: string; lfs?: { sha256: string } }[] };
       hash = body.siblings.find(f => f.rfilename === m.file)?.lfs?.sha256;
     }
-    if (!hash || !/^[a-f0-9]{64}$/i.test(hash)) throw new Error('The model source did not provide a valid checksum.');
+    if (!hash || !/^[a-f0-9]{64}$/i.test(hash)) throw new Error(t('The model source did not provide a valid checksum.'));
     const partial = partialOf(m);
     let have = await savedBytes(m);
     if (have > m.bytes) { await FS.deleteAsync(partial, { idempotent: true }); have = 0; }
     const free = await FS.getFreeDiskStorageAsync();
-    if (free < m.bytes - have + 300_000_000) throw new Error('Free up storage before downloading this model.');
+    if (free < m.bytes - have + 300_000_000) throw new Error(t('Free up storage before downloading this model.'));
     // totalBytesWritten already counts the bytes resumed from.
     const onProgress = (p: FS.DownloadProgressData) => change(m.id, { phase: 'downloading', progress: Math.min(1, p.totalBytesWritten / m.bytes) });
     for (let wait = 0; ; ) {
       have = await savedBytes(m);
       if (states[m.id]?.phase === 'paused') return;
       if (have >= m.bytes) break; // every byte is here; the checksum decides
-      change(m.id, { phase: 'downloading', progress: have / m.bytes, note: wait ? 'Reconnecting…' : undefined });
+      change(m.id, { phase: 'downloading', progress: have / m.bytes, note: wait ? t('Reconnecting…') : undefined });
       const task = new FS.DownloadResumable(modelUrl(m), partial, { headers }, onProgress, have ? String(have) : undefined);
       tasks.set(m.id, task);
       try {
@@ -119,20 +121,20 @@ export async function downloadModel(m: LocalModel) {
         if (have && result.status === 200) {
           // The server ignored the range and sent the whole file onto the end of the partial: start that copy over.
           await FS.deleteAsync(partial, { idempotent: true });
-          throw new Transient('The download restarted from the beginning.');
+          throw new Transient(t('The download restarted from the beginning.'));
         }
-        if (result.status === 429 || result.status >= 500) throw new Transient(`The model server is busy (${result.status}).`);
-        if (result.status !== 200 && result.status !== 206) throw new Error(`Download failed (${result.status}).`);
+        if (result.status === 429 || result.status >= 500) throw new Transient(t('The model server is busy ({status}).', { status: result.status }));
+        if (result.status !== 200 && result.status !== 206) throw new Failed(t('Download failed ({status}).', { status: result.status }));
         break;
       } catch (err) {
         if (states[m.id]?.phase === 'paused') return;
-        if (err instanceof GatedError || (!(err instanceof Transient) && /^Download failed/.test(err instanceof Error ? err.message : String(err)))) throw err;
+        if (err instanceof GatedError || err instanceof Failed) throw err;
         // Bytes arrived since the last try: the connection works, so the next wait starts short again.
         if ((await savedBytes(m)) > have) wait = 0;
         const progress = (await savedBytes(m)) / m.bytes;
         for (let left = RETRY_SECONDS[Math.min(wait, RETRY_SECONDS.length - 1)]; left > 0; left--) {
           if (states[m.id]?.phase === 'paused') return;
-          change(m.id, { phase: 'downloading', progress, note: `Connection lost · resuming in ${left}s` });
+          change(m.id, { phase: 'downloading', progress, note: t('Connection lost · resuming in {n}s', { n: left }) });
           await sleep(1000);
         }
         wait++;
@@ -142,7 +144,7 @@ export async function downloadModel(m: LocalModel) {
     const info = await FS.getInfoAsync(partial);
     if (!info.exists || info.size !== m.bytes || !(await verify.verifyFile(partial, hash))) {
       await FS.deleteAsync(partial, { idempotent: true });
-      throw new Error('The download did not pass its integrity check. Please download it again.');
+      throw new Error(t('The download did not pass its integrity check. Please download it again.'));
     }
     await FS.moveAsync({ from: partial, to: uriOf(m) });
     change(m.id, { phase: 'ready', progress: 1 });
@@ -155,8 +157,8 @@ export async function downloadModel(m: LocalModel) {
     // A pause or cancel the user asked for leaves nothing behind; the outcome of a finished run stays in the shade.
     const end = states[m.id];
     native?.downloadFinish?.(
-      end?.phase === 'ready' ? `${m.name} is ready` : end?.phase === 'error' ? `${m.name} didn’t finish downloading` : null,
-      end?.phase === 'ready' ? 'Tap to start chatting offline.' : end?.phase === 'error' ? end.error ?? null : null,
+      end?.phase === 'ready' ? t('{name} is ready', { name: m.name }) : end?.phase === 'error' ? t('{name} didn’t finish downloading', { name: m.name }) : null,
+      end?.phase === 'ready' ? t('Tap to start chatting offline.') : end?.phase === 'error' ? end.error ?? null : null,
     );
   }
 }
@@ -178,7 +180,7 @@ export async function cancelDownload(id: string) {
   change(id, { phase: 'available', progress: 0 });
 }
 export async function removeModel(id: string) {
-  if (active.has(id)) throw new Error('Pause the download before removing it.');
+  if (active.has(id)) throw new Error(t('Pause the download before removing it.'));
   const m = localModel(id);
   if (!m) return;
   await FS.deleteAsync(uriOf(m), { idempotent: true });

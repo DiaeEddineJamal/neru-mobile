@@ -23,6 +23,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { Icon } from '@/components/Icon';
 import { font, fs, useColors } from '@/theme';
 import { EASE_OUT } from '@/ui/motion';
+import { t as tx } from '@/i18n';
 
 const STACK_SPRING = { stiffness: 420, damping: 34, mass: 0.75 };
 const SNAP_BACK = { stiffness: 200, damping: 40, mass: 1 };
@@ -112,7 +113,7 @@ function ToastItem({ toast, index, onDismiss }: { toast: Toast; index: number; o
     <Animated.View entering={toastIn} exiting={toastOut} layout={restack} style={[s.item, { zIndex: 20 - index }]}>
       <GestureDetector gesture={swipe}>
         <Animated.View
-          accessibilityActions={[{ name: 'dismiss', label: 'Dismiss toast' }]}
+          accessibilityActions={[{ name: 'dismiss', label: tx('Dismiss toast') }]}
           onAccessibilityAction={() => onDismiss(id)}
           style={[s.surface, { backgroundColor: `${c.surface2}F2`, borderColor: c.border }, dragStyle]}
         >
@@ -143,7 +144,7 @@ function ToastItem({ toast, index, onDismiss }: { toast: Toast; index: number; o
                 </Pressable>
               ) : null}
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss toast" hitSlop={10} onPress={() => onDismiss(id)} style={s.close}>
+            <Pressable accessibilityRole="button" accessibilityLabel={tx('Dismiss toast')} hitSlop={10} onPress={() => onDismiss(id)} style={s.close}>
               <Icon name="close" size={14} color={c.muted} />
             </Pressable>
           </View>

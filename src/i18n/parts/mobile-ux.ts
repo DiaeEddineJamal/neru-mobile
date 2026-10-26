@@ -1,0 +1,47 @@
+import type { Part } from '@/i18n';
+
+const mobileUx: Part = {
+  fr: {
+    'Local': 'Local', 'Cloud': 'Cloud', 'Browse models': 'Parcourir les modèles', 'Installed models': 'Modèles installés',
+    'Clear search': 'Effacer la recherche', 'Show more models': 'Afficher plus de modèles',
+    'Downloading': 'Téléchargement',
+    'Download once. Chat offline. Your messages stay on this phone.': 'Téléchargez une fois. Discutez hors ligne. Vos messages restent sur ce téléphone.',
+    'Download a model to chat offline. Your messages stay on this phone.': 'Téléchargez un modèle pour discuter hors ligne. Vos messages restent sur ce téléphone.',
+    'Download a model and chat offline. Your messages stay on this phone.': 'Téléchargez un modèle et discutez hors ligne. Vos messages restent sur ce téléphone.',
+    'This model needs more memory than this phone has.': 'Ce modèle nécessite plus de mémoire que ce téléphone ne possède.',
+    'The model returned no text. Try a shorter prompt or a larger output limit.': 'Le modèle n’a renvoyé aucun texte. Essayez un message plus court ou une limite de sortie plus élevée.',
+    'Chat': 'Discussion', 'Vision': 'Vision', 'Function calling': 'Appel de fonctions', 'Photo selection': 'Sélection photo', 'MCP tools': 'Outils MCP', 'No tools': 'Sans outils',
+    '{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.': '{model} ne peut pas utiliser les outils des connecteurs : il répond sans eux. Choisissez un modèle marqué Outils MCP pour les utiliser.',
+    'Downloading… {n}%': 'Téléchargement… {n} %', 'Install': 'Installer', 'Open the release page': 'Ouvrir la page de la version',
+    'The download stopped ({reason}). Try again, or get it from the release page.': 'Le téléchargement s’est arrêté ({reason}). Réessayez, ou récupérez-la sur la page de la version.',
+  },
+  ar: {
+    'Local': 'محلي', 'Cloud': 'سحابي', 'Browse models': 'تصفح النماذج', 'Installed models': 'النماذج المثبتة',
+    'Clear search': 'مسح البحث', 'Show more models': 'عرض المزيد من النماذج',
+    'Downloading': 'جارٍ التنزيل',
+    'Download once. Chat offline. Your messages stay on this phone.': 'نزّل مرة واحدة ودردش دون إنترنت. تبقى رسائلك على هذا الهاتف.',
+    'Download a model to chat offline. Your messages stay on this phone.': 'نزّل نموذجًا للدردشة دون إنترنت. تبقى رسائلك على هذا الهاتف.',
+    'Download a model and chat offline. Your messages stay on this phone.': 'نزّل نموذجًا ودردش دون إنترنت. تبقى رسائلك على هذا الهاتف.',
+    'This model needs more memory than this phone has.': 'يحتاج هذا النموذج إلى ذاكرة أكبر من ذاكرة هذا الهاتف.',
+    'The model returned no text. Try a shorter prompt or a larger output limit.': 'لم يُرجع النموذج نصًا. جرّب رسالة أقصر أو حد إخراج أكبر.',
+    'Chat': 'دردشة', 'Vision': 'رؤية', 'Function calling': 'استدعاء الدوال', 'Photo selection': 'تحديد في الصور', 'MCP tools': 'أدوات MCP', 'No tools': 'بلا أدوات',
+    '{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.': 'لا يستطيع {model} استخدام أدوات الموصلات، لذا يجيب بدونها. اختر نموذجًا يحمل علامة أدوات MCP لاستخدامها.',
+    'Downloading… {n}%': 'جارٍ التنزيل… {n}٪', 'Install': 'تثبيت', 'Open the release page': 'فتح صفحة الإصدار',
+    'The download stopped ({reason}). Try again, or get it from the release page.': 'توقف التنزيل ({reason}). حاول مجددًا، أو نزّله من صفحة الإصدار.',
+  },
+  ary: {
+    'Local': 'محلي', 'Cloud': 'سحابي', 'Browse models': 'قلّب فالنماذج', 'Installed models': 'النماذج المثبتة',
+    'Clear search': 'مسح البحث', 'Show more models': 'ورّي نماذج كتر',
+    'Downloading': 'كيتنزّل',
+    'Download once. Chat offline. Your messages stay on this phone.': 'نزّل مرة وحدة ودردش بلا إنترنت. الرسائل ديالك كيبقاو فهاد التليفون.',
+    'Download a model to chat offline. Your messages stay on this phone.': 'نزّل نموذج باش تدردش بلا إنترنت. الرسائل ديالك كيبقاو فهاد التليفون.',
+    'Download a model and chat offline. Your messages stay on this phone.': 'نزّل نموذج ودردش بلا إنترنت. الرسائل ديالك كيبقاو فهاد التليفون.',
+    'This model needs more memory than this phone has.': 'هاد النموذج خاصّو ذاكرة كتر من اللي فهاد التليفون.',
+    'The model returned no text. Try a shorter prompt or a larger output limit.': 'النموذج ما رجّع حتى نص. جرّب رسالة أقصر ولا زيد حد الجواب.',
+    'Chat': 'دردشة', 'Vision': 'رؤية', 'Function calling': 'استدعاء الدوال', 'Photo selection': 'تحديد فالتصاور', 'MCP tools': 'أدوات MCP', 'No tools': 'بلا أدوات',
+    '{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.': '{model} ما يقدرش يستعمل أدوات الموصلات، داكشي علاش كيجاوب بلاهم. ختار نموذج فيه علامة أدوات MCP باش تستعملهم.',
+    'Downloading… {n}%': 'كيتنزّل… {n}٪', 'Install': 'ثبّت', 'Open the release page': 'حلّ صفحة الإصدار',
+    'The download stopped ({reason}). Try again, or get it from the release page.': 'التنزيل حبس ({reason}). عاود جرّب، ولا جيبو من صفحة الإصدار.',
+  },
+};
+export default mobileUx;

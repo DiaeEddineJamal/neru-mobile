@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/Icon';
+import { t } from '@/i18n';
 import { listAgentModels, updateTeamMember } from '@/remote/store';
 import type { AgentModel, TeamMember } from '@/shared/types';
 import { font, fs, TAP, useColors } from '@/theme';
@@ -13,7 +14,7 @@ import { RowsSkeleton } from '@/ui/skeleton';
 import { useToast } from '@/ui/toast';
 
 const EFFORT_LABEL: Record<string, string> = { minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' };
-const effortLabel = (e: string) => EFFORT_LABEL[e] ?? e.charAt(0).toUpperCase() + e.slice(1);
+const effortLabel = (e: string) => (EFFORT_LABEL[e] ? t(EFFORT_LABEL[e]) : undefined) ?? e.charAt(0).toUpperCase() + e.slice(1);
 
 export function TeamMemberSheet({ taskId, member, name, onClose }: { taskId: string; member: TeamMember | null; name: string; onClose: () => void }) {
   const c = useColors();
@@ -39,7 +40,7 @@ export function TeamMemberSheet({ taskId, member, name, onClose }: { taskId: str
     if (!member) return;
     setPicked({ ...(mine ?? {}), handle: member.handle, ...change });
     try { await updateTeamMember(taskId, member.handle, change); }
-    catch (err) { toast.show({ title: 'Could not change the member', description: String((err as Error)?.message ?? err) }); }
+    catch (err) { toast.show({ title: t('Could not change the member'), description: String((err as Error)?.message ?? err) }); }
   };
   const pickModel = (id: string) => {
     const next = models?.find(m => m.id === id);
@@ -60,19 +61,19 @@ export function TeamMemberSheet({ taskId, member, name, onClose }: { taskId: str
   return (
     <BottomSheet open={!!member} onClose={onClose} title={member ? `@${member.handle} · ${name}` : undefined}>
       <View style={{ gap: 8, paddingBottom: 8 }}>
-        <Text style={[s.heading, { color: c.muted }]}>MODEL</Text>
+        <Text style={[s.heading, { color: c.muted }]}>{t('MODEL')}</Text>
         {models === null ? <RowsSkeleton /> : (
           <View style={[s.group, { backgroundColor: c.surface2, borderColor: c.border }]}>
-            {option('default', 'Agent default', kind === 'codex' ? 'A model this Codex and your sign-in support' : null, !model, () => pickModel(''))}
+            {option('default', t('Agent default'), kind === 'codex' ? t('A model this Codex and your sign-in support') : null, !model, () => pickModel(''))}
             {models.map(m => option(m.id, m.label, m.label !== m.id ? m.id : null, model === m.id, () => pickModel(m.id)))}
-            {model && !chosen ? option(model, model, 'Set on the desktop', true, () => {}) : null}
+            {model && !chosen ? option(model, model, t('Set on the desktop'), true, () => {}) : null}
           </View>
         )}
-        {models !== null && !models.length ? <Text style={[s.note, { color: c.muted }]}>This agent keeps no model list. It uses its own default, or the model set on your desktop.</Text> : null}
+        {models !== null && !models.length ? <Text style={[s.note, { color: c.muted }]}>{t('This agent keeps no model list. It uses its own default, or the model set on your desktop.')}</Text> : null}
         {efforts.length ? <>
-          <Text style={[s.heading, { color: c.muted, marginTop: 12 }]}>REASONING EFFORT</Text>
+          <Text style={[s.heading, { color: c.muted, marginTop: 12 }]}>{t('REASONING EFFORT')}</Text>
           <View style={[s.group, { backgroundColor: c.surface2, borderColor: c.border }]}>
-            {option('default', chosen?.defaultEffort ? `Default (${effortLabel(chosen.defaultEffort)})` : 'Default', null, !effort, () => void apply({ effort: '' }))}
+            {option('default', chosen?.defaultEffort ? t('Default ({effort})', { effort: effortLabel(chosen.defaultEffort) }) : t('Default'), null, !effort, () => void apply({ effort: '' }))}
             {efforts.map(e => option(e, effortLabel(e), null, effort === e, () => void apply({ effort: e })))}
           </View>
         </> : null}

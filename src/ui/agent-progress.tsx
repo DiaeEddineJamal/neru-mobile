@@ -8,6 +8,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay
 
 import { font, fs, useColors } from '@/theme';
 import { EASE_IN_OUT } from '@/ui/motion';
+import { t } from '@/i18n';
 
 const DELAYS = [0, 0.14, 0.28, 0.42, 0.56, 0.7, 0.84, 0.98, 1.12];
 
@@ -45,7 +46,7 @@ export function AgentProgress({ label, value }: { label: string; value?: number 
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityLabel={`${label}, in progress`}
+      accessibilityLabel={t('{label}, in progress', { label })}
       accessibilityValue={timed ? undefined : { min: 0, max: 100, now: Math.round(value) }}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'flex-start' }}
     >

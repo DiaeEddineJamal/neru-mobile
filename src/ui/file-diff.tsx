@@ -9,6 +9,7 @@ import { Pressable, ScrollView, Text, type TextStyle, View } from 'react-native'
 
 import { Icon } from '@/components/Icon';
 import { font, fs, TAP, useColors } from '@/theme';
+import { t } from '@/i18n';
 
 type DiffLine = { id: string; type?: 'added' | 'removed' | 'context'; oldLine?: number; newLine?: number; content: string };
 
@@ -44,8 +45,8 @@ export function FileDiffCard({ file, added, removed, onPress }: { file: string; 
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${file}, ${added} added, ${removed} removed`}
-      accessibilityHint="Opens the diff"
+      accessibilityLabel={t('{file}, {added} added, {removed} removed', { file, added, removed })}
+      accessibilityHint={t('Opens the diff')}
       style={({ pressed }) => ({ minHeight: TAP, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, opacity: pressed ? 0.6 : 1 })}
     >
       <Icon name="fileCode" size={16} color={c.muted} />
@@ -71,7 +72,7 @@ export function FileDiffView({ file, patch }: { file: string; patch: string }) {
   const numberStyle: TextStyle = { ...mono, width: GUTTER, paddingRight: 8, textAlign: 'right', fontVariant: ['tabular-nums'], color: c.muted, opacity: 0.6 };
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12 }} accessibilityLabel={`Changes to ${file}`}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12 }} accessibilityLabel={t('Changes to {file}', { file })}>
       <View style={{ overflow: 'hidden', borderRadius: 12, backgroundColor: c.surface3 }} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={{ minWidth: width, paddingVertical: 4 }}>
@@ -84,7 +85,7 @@ export function FileDiffView({ file, patch }: { file: string; patch: string }) {
                 <View
                   key={line.id}
                   accessible
-                  accessibilityLabel={`${line.type === 'added' ? 'Added' : line.type === 'removed' ? 'Removed' : 'Line'} ${line.newLine ?? line.oldLine}: ${line.content}`}
+                  accessibilityLabel={t(line.type === 'added' ? 'Added {n}: {content}' : line.type === 'removed' ? 'Removed {n}: {content}' : 'Line {n}: {content}', { n: line.newLine ?? line.oldLine ?? '', content: line.content })}
                   style={{ flexDirection: 'row', backgroundColor: tint ? `${tint}12` : undefined }}
                 >
                   <Text style={numberStyle}>{line.oldLine}</Text>

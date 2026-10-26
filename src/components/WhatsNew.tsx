@@ -13,6 +13,7 @@ import { updateSettings, useStore } from '@/store';
 import { font, fs, useColors } from '@/theme';
 import { BottomSheet } from '@/ui/bottom-sheet';
 import { ActionButton } from '@/ui/button-base';
+import { t } from '@/i18n';
 
 export const appVersion = Constants.expoConfig?.version ?? '0.0.0';
 export type Release = (typeof releases)[number];
@@ -22,9 +23,9 @@ export function Hero({ version }: { version: string }) {
 
   return (
     <View style={s.hero}>
-      <Image source={require('@/assets/images/whats-new-parchment.png')} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel="Neru in a landscape of layered paper hills on warm parchment" accessibilityIgnoresInvertColors />
+      <Image source={require('@/assets/images/whats-new-parchment.png')} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={t('Neru in a landscape of layered paper hills on warm parchment')} accessibilityIgnoresInvertColors />
       <View style={[s.newPill, { backgroundColor: c.onAction }]}>
-        <Text style={{ fontFamily: font.semibold, fontSize: fs.xs, color: '#344a39', letterSpacing: 0.4 }}>NEW · {version}</Text>
+        <Text style={{ fontFamily: font.semibold, fontSize: fs.xs, color: '#344a39', letterSpacing: 0.4 }}>{t('NEW · {version}', { version })}</Text>
       </View>
     </View>
   );
@@ -69,8 +70,8 @@ export function WhatsNew() {
         </View>
         <ReleaseItems release={release} />
         <View style={{ gap: 4 }}>
-          <ActionButton title="Got it" onPress={close} />
-          <ActionButton title="See all updates" variant="ghost" onPress={() => (close(), router.push('/changelog'))} />
+          <ActionButton title={t('Got it')} onPress={close} />
+          <ActionButton title={t('See all updates')} variant="ghost" onPress={() => (close(), router.push('/changelog'))} />
         </View>
       </View>
     </BottomSheet>

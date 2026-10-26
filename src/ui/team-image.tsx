@@ -11,6 +11,7 @@ import { ActionButton } from '@/ui/button-base';
 import { GridReveal } from '@/ui/grid-reveal';
 import { ImageViewer } from '@/ui/image-viewer';
 import { useToast } from '@/ui/toast';
+import { t } from '@/i18n';
 
 // Fetched once per image for the life of the app; the thread re-renders often while a team works.
 const cache = new Map<string, Promise<string>>();
@@ -32,7 +33,7 @@ async function saveToGallery(dataUri: string, name: string) {
 
 /** The grid alone, while an agent is still drawing. */
 export function DrawingImage() {
-  return <View style={s.frame}><GridReveal uri={null} caption="Creating image" estimatedDuration={45000} /></View>;
+  return <View style={s.frame}><GridReveal uri={null} caption={t('Creating image')} estimatedDuration={45000} /></View>;
 }
 
 export function TeamImage({ taskId, name }: { taskId: string; name: string }) {
@@ -42,24 +43,24 @@ export function TeamImage({ taskId, name }: { taskId: string; name: string }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     let live = true;
-    load(taskId, name).then(u => live && setUri(u), err => live && toast.show({ title: 'Could not load the image', description: String(err?.message ?? err) }));
+    load(taskId, name).then(u => live && setUri(u), err => live && toast.show({ title: t('Could not load the image'), description: String(err?.message ?? err) }));
     return () => { live = false; };
   }, [taskId, name, toast]);
 
   const save = async () => {
     if (!uri) return;
     setSaving(true);
-    try { await saveToGallery(uri, name); haptic.success(); toast.show({ title: 'Saved to your gallery' }); }
-    catch (err) { toast.show({ title: 'Could not save the image', description: err instanceof Error ? err.message : String(err) }); }
+    try { await saveToGallery(uri, name); haptic.success(); toast.show({ title: t('Saved to your gallery') }); }
+    catch (err) { toast.show({ title: t('Could not save the image'), description: err instanceof Error ? err.message : String(err) }); }
     finally { setSaving(false); }
   };
 
   return (
     <View style={[s.frame, { gap: 8 }]}>
-      <Pressable onPress={() => uri && setOpen(true)} disabled={!uri} accessibilityRole="imagebutton" accessibilityLabel="Generated image. Open full screen">
-        <GridReveal uri={uri} alt="Generated image" caption="Loading image" estimatedDuration={4000} />
+      <Pressable onPress={() => uri && setOpen(true)} disabled={!uri} accessibilityRole="imagebutton" accessibilityLabel={t('Generated image. Open full screen')}>
+        <GridReveal uri={uri} alt={t('Generated image')} caption={t('Loading image')} estimatedDuration={4000} />
       </Pressable>
-      {uri ? <ActionButton title="Save to gallery" icon="download" variant="secondary" loading={saving} onPress={() => void save()} /> : null}
+      {uri ? <ActionButton title={t('Save to gallery')} icon="download" variant="secondary" loading={saving} onPress={() => void save()} /> : null}
       <ImageViewer images={uri ? [{ uri, name }] : []} index={open ? 0 : null} onClose={() => setOpen(false)} />
     </View>
   );

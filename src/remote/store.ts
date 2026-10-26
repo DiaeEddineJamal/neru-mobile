@@ -5,8 +5,9 @@ import { useSyncExternalStore } from 'react';
 
 import { RemoteClient, type Status } from '@/remote/client';
 import { parsePairing, toBase64Url, type Pairing } from '@/remote/crypto';
-import type { RemoteCommands, SessionSummaryForPhone } from '@/shared/remoteProtocol';
-import type { AgentEvent, AgentModel, ChatEntry, PendingView, SessionSnapshot, TeamEvent, TeamAgent, TeamPost, TeamTask, TeamTaskSummary, Todo } from '@/shared/types';
+import type { PhoneImage, ProjectForPhone, RemoteCommands, SessionSummaryForPhone } from '@/shared/remoteProtocol';
+import type { AgentEvent, AgentModel, ChatEntry, Digest, PendingView, QueuedTask, SessionSnapshot, TeamEvent, TeamAgent, TeamPost, TeamTask, TeamTaskSummary, Todo, UsageTotals } from '@/shared/types';
+import { t as tx } from '@/i18n';
 
 export type RemoteSession = SessionSummaryForPhone;
 export type LiveTool = { id: string; label: string; status: 'running' | 'done' | 'error' | 'pending' };
@@ -27,10 +28,12 @@ type State = {
   views: Record<string, SessionView>;
   teams: TeamTaskSummary[];
   teamViews: Record<string, TeamTask & { live: Record<string, { text: string; steps: string[]; drawing?: boolean }> }>;
+  /** Tasks queued on the desktop, and the ones that ran lately. */
+  queue: QueuedTask[];
   error: string | null;
 };
 
-let state: State = { desktopName: null, status: 'off', sessions: [], views: {}, teams: [], teamViews: {}, error: null };
+let state: State = { desktopName: null, status: 'off', sessions: [], views: {}, teams: [], teamViews: {}, queue: [], error: null };
 const listeners = new Set<() => void>();
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
@@ -51,6 +54,7 @@ function onEvent(event: string, payload: unknown) {
   if (event === 'sessions') return set({ sessions: normalizeSessions(payload as never) });
   if (event === 'agent') return onAgent(payload as AgentEvent);
   if (event === 'team') return onTeam(payload as TeamEvent);
+  if (event === 'queue') return set({ queue: payload as QueuedTask[] });
 }
 
 const emptyView = (): SessionView => ({ entries: [], pending: null, todos: [], live: null, notices: [] });
@@ -77,6 +81,8 @@ function onAgent(e: AgentEvent) {
       return updateView(e.sessionId, v => ({ ...v, todos: e.todos }));
     case 'notice':
       return updateView(e.sessionId, v => ({ ...v, notices: [...v.notices, e.text] }));
+    case 'review':
+      return updateView(e.sessionId, v => (v.pending ? { ...v, pending: { ...v.pending, review: e.review } } : v));
     case 'status':
       set({ sessions: state.sessions.map(s => (s.id === e.sessionId ? { ...s, running: e.running } : s)) });
       // A finished or paused turn: the desktop's snapshot now holds the whole reply and any approval.
@@ -120,7 +126,7 @@ export async function pair(code: string) {
     next.close();
     const previous = await SecureStore.getItemAsync(PAIRING);
     if (previous) start(parsePairing(previous));
-    else { client = null; set({ desktopName: null, status: 'off', sessions: [], views: {}, teams: [], teamViews: {}, host: undefined }); }
+    else { client = null; set({ desktopName: null, status: 'off', sessions: [], views: {}, teams: [], teamViews: {}, queue: [], host: undefined }); }
     throw err;
   }
 }
@@ -129,12 +135,12 @@ export async function unpair() {
   client?.close();
   client = null;
   await SecureStore.deleteItemAsync(PAIRING);
-  set({ desktopName: null, status: 'off', host: undefined, error: null, sessions: [], views: {}, teams: [], teamViews: {} });
+  set({ desktopName: null, status: 'off', host: undefined, error: null, sessions: [], views: {}, teams: [], teamViews: {}, queue: [] });
 }
 
 function start(p: Pairing) {
   client?.close();
-  set({ desktopName: p.name, host: undefined, sessions: [], views: {}, teams: [], teamViews: {}, error: null });
+  set({ desktopName: p.name, host: undefined, sessions: [], views: {}, teams: [], teamViews: {}, queue: [], error: null });
   client = new RemoteClient(p, onEvent, (status, host) => {
     set({ status, host });
     if (status === 'connected') void refreshAll();
@@ -143,20 +149,27 @@ function start(p: Pairing) {
 }
 
 export const wakeRemote = () => client?.wake();
+/** Resolves once the desktop answers again (after a wake from the background), or rejects after a timeout. */
+export const whenConnected = () => (client ? client.whenConnected() : Promise.reject(new Error(tx('Pair a desktop first.'))));
+/** The waiting call of a session, read fresh from the desktop. */
+export const pendingOf = async (sessionId: string) => (await call<SessionSnapshot>('session_snapshot', { sessionId })).pending;
 export const pairingKeyFingerprint = (p: Pairing) => toBase64Url(p.key).slice(0, 6);
 
 async function call<T>(cmd: string, args?: Record<string, unknown>) {
-  if (!client) throw new Error('Pair a desktop first.');
+  if (!client) throw new Error(tx('Pair a desktop first.'));
   return client.request<T>(cmd, args);
 }
+
+/** Any command on the paired desktop (the MCP bridge uses it). */
+export const desktopCall = <T>(cmd: string, args?: Record<string, unknown>) => call<T>(cmd, args);
 
 export async function refreshAll() {
   try {
     // The desktop starts pushing events once a frame from us decrypts; hello also names the computer.
     const hello = await call<{ name: string; version: string }>('hello');
     set({ desktopName: hello.name });
-    const [sessions, teams] = await Promise.all([call<RemoteSession[]>('list_sessions'), call<TeamTaskSummary[]>('list_teams').catch(() => [])]);
-    set({ sessions: normalizeSessions(sessions), teams, error: null });
+    const [sessions, teams, queue] = await Promise.all([call<RemoteSession[]>('list_sessions'), call<TeamTaskSummary[]>('list_teams').catch(() => []), call<QueuedTask[]>('list_queue').catch(() => [])]);
+    set({ sessions: normalizeSessions(sessions), teams, queue, error: null });
     await Promise.all([...Object.keys(state.views).map(refreshSession), ...Object.keys(state.teamViews).map(openTeam)]);
   } catch (err) {
     set({ error: err instanceof Error ? err.message : String(err) });
@@ -174,10 +187,11 @@ export async function openSession(sessionId: string) {
   await refreshSession(sessionId);
 }
 
-export const sendPrompt = (sessionId: string, text: string) => call('send_prompt', { sessionId, text });
+export const sendPrompt = (sessionId: string, text: string, images?: PhoneImage[]) => call('send_prompt', { sessionId, text, ...(images?.length ? { images } : {}) });
 export const stopSession = (sessionId: string) => call('stop', { sessionId });
-export async function answerApproval(sessionId: string, approve: boolean, always = false) {
-  await call(approve ? 'approve' : 'deny', approve ? { sessionId, always } : { sessionId });
+/** Approves or denies the waiting call; a denial can say why, and `remember` keeps that as a project rule. */
+export async function answerApproval(sessionId: string, approve: boolean, always = false, why?: { reason: string; remember: boolean }) {
+  await call(approve ? 'approve' : 'deny', approve ? { sessionId, always } : { sessionId, ...(why?.reason.trim() ? { reason: why.reason.trim(), remember: why.remember } : {}) });
   updateView(sessionId, v => ({ ...v, pending: null }));
   set({ sessions: state.sessions.map(s => (s.id === sessionId ? { ...s, waiting: false } : s)) });
 }
@@ -209,3 +223,24 @@ export async function createTeamTask(args: RemoteCommands['create_team_task']['a
   set({ teams: await call<TeamTaskSummary[]>('list_teams').catch(() => state.teams) });
   return task;
 }
+
+// ---- tasks from the phone ----
+
+export const listProjects = () => call<ProjectForPhone[]>('list_projects');
+/** Starts a Code session on the desktop and lists it, so its screen can open right away. */
+export async function newSession(args: RemoteCommands['new_session']['args']) {
+  const { sessionId } = await call<{ sessionId: string }>('new_session', args);
+  set({ sessions: normalizeSessions(await call<RemoteSession[]>('list_sessions').catch(() => state.sessions)) });
+  return sessionId;
+}
+export async function queueTask(args: RemoteCommands['queue_task']['args']) {
+  const task = await call<QueuedTask>('queue_task', args);
+  set({ queue: [task, ...state.queue.filter(t => t.id !== task.id)] });
+  return task;
+}
+export async function cancelTask(id: string) {
+  await call('cancel_task', { id });
+  set({ queue: state.queue.map(t => (t.id === id ? { ...t, status: 'canceled' as const } : t)) });
+}
+export const loadDigest = (since: number) => call<Digest>('digest', { since });
+export const desktopUsage = () => call<UsageTotals>('usage_summary');

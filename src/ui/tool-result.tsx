@@ -19,7 +19,7 @@ const statusLabel = { running: 'Running', done: 'Completed', failed: 'Failed' } 
 export function ToolResult({ tool, summary, detail, status }: { tool: string; summary: string; detail?: string; status: ToolResultStatus }) {
   const c = useColors();
   const viewport = useRef<ScrollView>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(status === 'running' && !!detail);
   // Opens when a run starts, collapses when it ends (beUI's status effect, derived during render).
   const [prevStatus, setPrevStatus] = useState(status);
   if (prevStatus !== status) {
@@ -37,7 +37,8 @@ export function ToolResult({ tool, summary, detail, status }: { tool: string; su
   return (
     <View accessibilityState={{ busy: running }} style={{ width: '100%' }}>
       <Pressable
-        onPress={() => setOpen(!open)}
+        onPress={() => detail && setOpen(!open)}
+        disabled={!detail}
         accessibilityRole="button"
         accessibilityLabel={`${summary}, ${tool}, ${t(statusLabel[status])}`}
         accessibilityState={{ expanded: open }}
@@ -54,10 +55,10 @@ export function ToolResult({ tool, summary, detail, status }: { tool: string; su
           {running ? <LoaderCircle size={12} color={tone} /> : <Icon name={status === 'done' ? 'checkCircle' : 'xCircle'} size={12} color={tone} />}
           <RollText value={status} style={{ fontFamily: font.medium, fontSize: 11, color: tone }}>{t(statusLabel[status])}</RollText>
         </View>
-        <DisclosureChevron open={open} color={c.muted} />
+        {detail ? <DisclosureChevron open={open} color={c.muted} /> : null}
       </Pressable>
 
-      <AgentDisclosure open={open}>
+      <AgentDisclosure open={open && !!detail}>
         <View style={{ paddingLeft: 24, paddingTop: 6 }}>
           <View style={{ overflow: 'hidden', borderRadius: 12, backgroundColor: c.surface3 }}>
             <ScrollView ref={viewport} nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 220 }} contentContainerStyle={{ padding: 12 }}>

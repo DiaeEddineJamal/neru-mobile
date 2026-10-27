@@ -288,9 +288,39 @@ function gemmaCalls(body: string): Called[] {
   return [{ name: call[1], arguments: parseArgs(json) }];
 }
 
+/** Closes brackets a small model left open or closed in the wrong order, outside strings. */
+export function repairJson(text: string): string {
+  const stack: string[] = [];
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      out += ch;
+      if (ch === '\\') out += text[++i] ?? '';
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{' || ch === '[') stack.push(ch === '{' ? '}' : ']');
+    else if (ch === '}' || ch === ']') {
+      // A closer for an outer bracket closes the inner ones first; a closer with nothing open is dropped.
+      if (!stack.includes(ch)) continue;
+      while (stack.length && stack.at(-1) !== ch) out += stack.pop();
+      stack.pop();
+    }
+    out += ch;
+  }
+  if (inString) out += '"';
+  return out.replace(/,\s*$/, '') + stack.reverse().join('');
+}
+
 /** `{"name", "arguments"}` JSON, one call or a list of them. */
 function jsonCalls(text: string): Called[] {
-  const body = JSON.parse(text.replace(/^```(?:json)?|```$/g, '').trim()) as Partial<Called> | Partial<Called>[];
+  const source = text.replace(/^```(?:json)?|```$/g, '').trim();
+  let parsed: unknown;
+  try { parsed = JSON.parse(source); } catch { parsed = JSON.parse(repairJson(source)); }
+  const body = parsed as Partial<Called> | Partial<Called>[];
   // Models trained on other formats name the arguments "parameters", "input" or "args", or send them as a JSON string.
   type Loose = Partial<Called> & { parameters?: unknown; input?: unknown; args?: unknown };
   const args = (c: Loose) => {
@@ -316,8 +346,9 @@ function pythonCalls(text: string): Called[] {
 }
 
 /** The tool calls an on-device reply made, and its text without them. */
-export function parseLocalCalls(text: string): { visible: string; calls: ToolCall[] } {
+export function parseLocalCalls(text: string): { visible: string; calls: ToolCall[]; /** A call that could not be read, to send back. */ invalid?: string } {
   const found: Called[] = [];
+  let invalid: string | undefined;
   // A reply that stopped right after the JSON, before </tool_call>: close the last call.
   if (/<tool_call>(?![\s\S]*<\/tool_call>)\s*(```(json)?\s*)?\{[\s\S]*\}\s*(```)?\s*$/.test(text)) text += '</tool_call>';
   for (const m of text.matchAll(CALL)) {
@@ -326,8 +357,10 @@ export function parseLocalCalls(text: string): { visible: string; calls: ToolCal
       continue;
     }
     const body = (m[1] ?? m[2]).trim();
+    const before = found.length;
     try { found.push(...jsonCalls(body)); }
     catch { found.push(...pythonCalls(body)); }
+    if (found.length === before) invalid = body.slice(0, 1500);
   }
   let visible = text.replace(CALL, '').replace(new RegExp(`(${OPEN.source})[\\s\\S]*$`), '').replace(/<\|tool_response>[\s\S]*$/, '').trim();
   // No tags at all, but the whole reply is a call: take it as one.
@@ -342,7 +375,7 @@ export function parseLocalCalls(text: string): { visible: string; calls: ToolCal
     } catch {}
   }
   const stamp = Date.now();
-  return { visible, calls: found.map((c, i) => ({ id: `local_${stamp}_${i}`, name: c.name, args: JSON.stringify(c.arguments) })) };
+  return { visible, calls: found.map((c, i) => ({ id: `local_${stamp}_${i}`, name: c.name, args: JSON.stringify(c.arguments) })), invalid };
 }
 
 /** What streams to the screen: everything before a tool call starts, and nothing while the reply is bare JSON. */

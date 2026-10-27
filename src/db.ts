@@ -19,7 +19,7 @@ if (!db.getAllSync<{ name: string }>('PRAGMA table_info(messages)').some(c => c.
 
 export type Attachment = { id: string; kind: 'image' | 'file'; name: string; uri: string; mime: string; base64?: string; /** A text file's contents, sent inline. */ text?: string };
 /** A connector tool a reply called: which one, where, and how it went. */
-export type ToolStep = { name: string; label: string; status: 'running' | 'done' | 'failed' | 'denied' };
+export type ToolStep = { name: string; label: string; status: 'running' | 'done' | 'failed' | 'denied'; /** Arguments sent and the start of the result. */ detail?: string };
 export type Message = { id: string; role: 'user' | 'assistant'; text: string; reasoning?: string; attachments?: Attachment[]; model?: string; error?: string; tools?: ToolStep[]; createdAt: number };
 export type Chat = { id: string; title: string; starred: boolean; updatedAt: number; messages: Message[] };
 

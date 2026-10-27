@@ -5,7 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { cameraChat, pickFiles, pickPhotos, recoverPhoto, takePhoto } from '@/attach';
 import { mergeAttachments, useComposerDraft } from '@/drafts';
@@ -41,7 +41,6 @@ const speakable = (md: string) =>
     .replace(/[*_#>|]/g, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
-const ROW_GLIDE = LinearTransition.springify().stiffness(340).damping(30).mass(0.8);
 // Messages created after the screen opened animate in, even when the reply placeholder already sits below
 // them; the allowance covers a chat started on the home screen, which mounts just after its first message.
 const FRESH_MS = 1000;
@@ -174,9 +173,9 @@ export function ChatView({ chatId }: { chatId: string | null }) {
     return (
       <Animated.View entering={item.createdAt > openedAt - FRESH_MS ? FadeIn.duration(220).delay(120) : undefined} style={{ paddingHorizontal: 20, gap: 8 }}>
         {/* While a reply streams, the orb footer below says what the model is doing, as on the desktop. */}
-        {item.reasoning ? <ReasoningText text={item.reasoning} streaming={false} /> : null}
+        {item.reasoning?.trim() ? <ReasoningText text={item.reasoning.trim()} streaming={false} /> : null}
         {(item.tools ?? []).map((t, i) => (
-          <ToolResult key={i} tool={t.label} summary={t.status === 'denied' ? tx('{name} · declined', { name: t.name }) : t.name} status={t.status === 'running' ? 'running' : t.status === 'done' ? 'done' : 'failed'} />
+          <ToolResult key={i} tool={t.label} detail={t.detail} summary={t.status === 'denied' ? tx('{name} · declined', { name: t.name }) : t.name} status={t.status === 'running' ? 'running' : t.status === 'done' ? 'done' : 'failed'} />
         ))}
         {item.error ? (
           <View style={[s.error, { backgroundColor: c.surface2, borderColor: c.border }]} accessibilityLiveRegion="polite">
@@ -202,7 +201,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
             <AssistantMessage text={item.text} streaming={live} onCopy={() => copy(item.text)} onRetry={isLast && chatId ? () => retry(chatId) : undefined} />
           </ContextMenu>
         ) : null}
-        {live && !item.error ? <ThinkingShimmer {...(item.text ? { state: 'composing', label: tx('Composing') } : item.reasoning ? { state: 'solving', label: tx('Reasoning') } : { state: 'working', label: tx('Thinking') })} /> : null}
+        {live && !item.error ? <ThinkingShimmer {...(item.text ? { state: 'composing', label: tx('Composing') } : item.reasoning?.trim() ? { state: 'solving', label: tx('Reasoning') } : { state: 'working', label: tx('Thinking') })} /> : null}
         {!live && item.model && isLast ? <Text style={[s.model, { color: c.muted }]}>{item.model}</Text> : null}
       </Animated.View>
     );
@@ -222,9 +221,6 @@ export function ChatView({ chatId }: { chatId: string | null }) {
           <Animated.FlatList
             ref={list}
             inverted
-            // Rows glide to make room for a new message instead of jumping, like iMessage; not while a reply streams,
-            // when the growing reply would restart the glide many times a second.
-            itemLayoutAnimation={streaming ? undefined : ROW_GLIDE}
             data={reversed}
             keyExtractor={m => m.id}
             renderItem={render}

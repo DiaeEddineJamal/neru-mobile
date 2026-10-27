@@ -141,7 +141,7 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
             <Icon name="mic" size={18} color={listening ? c.moss : c.muted} />
           </Button></TourTarget>
           {listening && voiceLevel ? <VoiceWaveform level={voiceLevel} active={!voiceProcessing} color={c.text} /> : null}
-          {streaming && canSubmit ? <Button label={t('Stop generating')} onPress={onStop} style={s.icon}><Icon name="stop" size={12} color={c.muted} /></Button> : null}
+          {streaming && canSubmit ? <Button label={t('Stop generating')} onPress={onStop} style={s.icon}><Icon name="stop" size={16} color={c.muted} /></Button> : null}
           <Button
             label={showStop ? t('Stop generating') : streaming ? t('Send follow-up') : t('Send prompt')}
             feedback={showStop ? 'light' : 'medium'}
@@ -149,8 +149,8 @@ export function PromptInput({ value, onChangeText, onSend, onStop, streaming, pl
             disabled={showStop ? !!disabled : !canSubmit}
             style={[s.icon, { marginLeft: 'auto', backgroundColor: c.mossAction }]}
           >
-            <SwapIcon swapKey={showStop ? 'stop' : 'send'} size={16}>
-              <Icon name={showStop ? 'stop' : 'send'} size={showStop ? 12 : 16} color={c.onAction} />
+            <SwapIcon swapKey={showStop ? 'stop' : 'send'} size={showStop ? 18 : 16}>
+              <Icon name={showStop ? 'stop' : 'send'} size={showStop ? 18 : 16} color={c.onAction} />
             </SwapIcon>
           </Button>
         </View>

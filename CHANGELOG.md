@@ -1,5 +1,13 @@
 # Neru mobile changelog
 
+## 0.15.1 · 2026-10-27
+
+**Smoother tools.** Phone models use connectors more reliably, and tool steps, reasoning and approvals are easier to read.
+
+- **Tool calls that work.** Neru repairs tool calls a phone model writes with a misplaced bracket, and asks the model to try again instead of showing raw code when a call can't be read.
+- **See what happened.** Tool steps show what was sent and what came back, approvals scroll inside the card so Allow and Deny stay on screen, and empty reasoning no longer opens to nothing.
+- **Calmer screen.** On-device replies redraw less often so the model gets more of the processor, the stop button is bigger, and a dictated message no longer jumps under the reply.
+
 ## 0.15.0 · 2026-10-27
 
 **More from your phone.** Warm local models, readable documents, better tool calls and updates that download inside Neru.

@@ -1,5 +1,28 @@
 [
   {
+    "version": "0.15.1",
+    "date": "2026-10-27",
+    "title": "Smoother tools",
+    "summary": "Phone models use connectors more reliably, and tool steps, reasoning and approvals are easier to read.",
+    "items": [
+      {
+        "icon": "wrench",
+        "title": "Tool calls that work",
+        "text": "Neru repairs tool calls a phone model writes with a misplaced bracket, and asks the model to try again instead of showing raw code when a call can't be read."
+      },
+      {
+        "icon": "chat",
+        "title": "See what happened",
+        "text": "Tool steps show what was sent and what came back, approvals scroll inside the card so Allow and Deny stay on screen, and empty reasoning no longer opens to nothing."
+      },
+      {
+        "icon": "lab",
+        "title": "Calmer screen",
+        "text": "On-device replies redraw less often so the model gets more of the processor, the stop button is bigger, and a dictated message no longer jumps under the reply."
+      }
+    ]
+  },
+  {
     "version": "0.15.0",
     "date": "2026-10-27",
     "title": "More from your phone",

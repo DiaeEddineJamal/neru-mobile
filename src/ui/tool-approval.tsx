@@ -5,7 +5,7 @@
 // button under them; the badge label rolls between states (ActionSwapRollText). Badge colours swap instantly
 // rather than through transition-colors. Not ported: shiki highlighting of the detail.
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { type EntryExitAnimationFunction, useReducedMotion, withTiming } from 'react-native-reanimated';
 
 import { Icon } from '@/components/Icon';
@@ -38,7 +38,7 @@ export function ToolApproval({ tool, summary, detail, onApprove, onDeny, onAlway
 }) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const [open, setOpen] = useState(!resolved);
+  const [open, setOpen] = useState(false);
   const [prevResolved, setPrevResolved] = useState(resolved);
   if (prevResolved !== resolved) {
     setPrevResolved(resolved);
@@ -77,8 +77,11 @@ export function ToolApproval({ tool, summary, detail, onApprove, onDeny, onAlway
       </View>
 
       <AgentDisclosure open={open}>
-        <View style={{ marginHorizontal: 16, marginBottom: 16, borderRadius: 8, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface3, paddingHorizontal: 10, paddingVertical: 8 }}>
-          <Text selectable style={{ fontFamily: font.mono, fontSize: fs.xs, lineHeight: 20, color: c.text }}>{detail}</Text>
+        <View style={{ marginHorizontal: 16, marginBottom: 16, overflow: 'hidden', borderRadius: 8, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface3 }}>
+          {/* Long arguments scroll inside the card, so Allow and Deny stay on screen. */}
+          <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }} contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 8 }}>
+            <Text selectable style={{ fontFamily: font.mono, fontSize: fs.xs, lineHeight: 20, color: c.text }}>{detail}</Text>
+          </ScrollView>
         </View>
       </AgentDisclosure>
 

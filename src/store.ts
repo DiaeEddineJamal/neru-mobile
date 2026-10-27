@@ -273,10 +273,10 @@ async function streamReply(chatId: string) {
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   const flush = () => {
     flushTimer = null;
-    updateChat(chatId, c => ({ ...c, messages: c.messages.map(m => (m.id === reply.id ? { ...m, text, reasoning: reasoning || undefined, tools: steps.length ? steps : undefined } : m)) }));
+    updateChat(chatId, c => ({ ...c, messages: c.messages.map(m => (m.id === reply.id ? { ...m, text, reasoning: reasoning.trim() ? reasoning : undefined, tools: steps.length ? steps : undefined } : m)) }));
   };
-  // An on-device reply shares the processor with the screen: half the redraws leave more of it to the model.
-  const schedule = () => (flushTimer ??= setTimeout(flush, providerId === 'on-device' ? 66 : 33));
+  // An on-device reply shares the processor with the screen: about 7 redraws a second leave most of it to the model.
+  const schedule = () => (flushTimer ??= setTimeout(flush, providerId === 'on-device' ? 150 : 33));
 
   const chat = chatOf(chatId)!;
   let { providerId, model } = state.settings;
@@ -331,7 +331,13 @@ async function streamReply(chatId: string) {
           await streamLocal(model, working, onDelta, controller.signal, phase => set({ notice: { chatId, text: phase === 'loading' ? tx('Loading the model on your phone…') : tx('Running on this phone · Offline') } }), r => ((reasoning += r), schedule()), tools.length > 0);
           const parsed = parseLocalCalls(said);
           calls = tools.length ? parsed.calls : [];
-          text = shown + (calls.length ? parsed.visible : said);
+          text = shown + (tools.length ? parsed.visible : said);
+          if (tools.length && !calls.length && parsed.invalid && round < MAX_TOOL_ROUNDS - 1) {
+            steps = [...steps, { name: tx('Tool call'), label: tx('Unreadable'), status: 'failed', detail: parsed.invalid }];
+            working.push({ role: 'assistant', text: said }, { role: 'user', text: `Original request: ${task}\n\nYour tool call was not valid JSON, so it did not run. Write it again as <tool_call>{"name": "...", "arguments": {...}}</tool_call> with every bracket closed.` });
+            shown = text ? `${text}\n\n` : '';
+            continue;
+          }
         } else {
           const sent = state.settings.redact ? hideSecrets(working) : { messages: working, hidden: 0 };
           if (sent.hidden && round === 0) set({ notice: { chatId, text: sent.hidden === 1 ? tx('Hid 1 secret (keys, tokens or passwords) before sending.') : tx('Hid {n} secrets (keys, tokens or passwords) before sending.', { n: sent.hidden }) } });
@@ -363,7 +369,13 @@ async function streamReply(chatId: string) {
           if (textTools && tools.length) {
             const parsed = parseLocalCalls(said);
             calls = parsed.calls;
-            text = shown + (calls.length ? parsed.visible : said);
+            text = shown + parsed.visible;
+            if (!calls.length && parsed.invalid && round < MAX_TOOL_ROUNDS - 1) {
+              steps = [...steps, { name: tx('Tool call'), label: tx('Unreadable'), status: 'failed', detail: parsed.invalid }];
+              working.push({ role: 'assistant', text: said }, { role: 'user', text: `Original request: ${task}\n\nYour tool call was not valid JSON, so it did not run. Write it again as <tool_call>{"name": "...", "arguments": {...}}</tool_call> with every bracket closed.` });
+              shown = text ? `${text}\n\n` : '';
+              continue;
+            }
           }
           void recordSuccess(config);
         }
@@ -379,7 +391,7 @@ async function streamReply(chatId: string) {
           catch (err) { argumentError = err instanceof Error ? err.message : String(err); }
           let result: string;
           const index = steps.length;
-          steps = [...steps, { name: tool?.title ?? call.name, label: tool?.label ?? tx('Unknown tool'), status: 'running' }];
+          steps = [...steps, { name: tool?.title ?? call.name, label: tool?.label ?? tx('Unknown tool'), status: 'running', detail: JSON.stringify(args, null, 2) }];
           schedule();
           const mark = (status: ToolStep['status']) => ((steps = steps.map((s, i) => (i === index ? { ...s, status } : s))), schedule());
           if (!tool) {
@@ -400,6 +412,9 @@ async function streamReply(chatId: string) {
               mark('failed');
             }
           }
+          // The row shows what was sent and the start of what came back.
+          steps = steps.map((s, i) => (i === index ? { ...s, detail: `${s.detail ?? ''}\n\n→ ${result.length > 1500 ? `${result.slice(0, 1500)}…` : result}`.trim() } : s));
+          schedule();
           toolsRan = true;
           // A phone model reads about 1,000 tokens of a result; more would crowd out the conversation.
           if (textTools) working.push({ role: 'user', text: `Original request: ${task}\n\n<tool_result name="${call.name}">\n${result.slice(0, local ? 3000 : 60000)}\n</tool_result>` });
@@ -430,7 +445,7 @@ async function streamReply(chatId: string) {
   }
   if (!chatOf(chatId)) return; // deleted while answering
   const ended = steps.map(s => (s.status === 'running' ? { ...s, status: 'failed' as const } : s));
-  const final: Message = { ...reply, text, reasoning: reasoning || undefined, model, error: text ? undefined : error, tools: ended.length ? ended : undefined };
+  const final: Message = { ...reply, text, reasoning: reasoning.trim() || undefined, model, error: text ? undefined : error, tools: ended.length ? ended : undefined };
   updateChat(chatId, c => ({ ...c, updatedAt: Date.now(), messages: c.messages.map(m => (m.id === reply.id ? final : m)) }));
   saveMessage(chatId, final);
   saveChat(chatOf(chatId)!);

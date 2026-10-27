@@ -46,6 +46,13 @@ assert.equal(parseLocalCalls('No tools here.').calls.length, 0);
 const bare = parseLocalCalls('```json\n{"name": "deepwiki__ask_question", "arguments": {"repoName": "a/b", "question": "What?"}}\n```');
 assert.deepEqual([bare.visible, bare.calls[0]?.name, bare.calls[0]?.args], ['', 'deepwiki__ask_question', '{"repoName":"a/b","question":"What?"}']);
 assert.equal(parseLocalCalls('{"answer": 42}').calls.length, 0);
+// A small model's call with a bracket closed in the wrong order and no closing tag is repaired; unreadable ones are reported.
+const repaired = parseLocalCalls('<tool_call>{"name": "notion__notion-create-pages", "arguments": {"pages": [{"properties": {"title": "Doc"}], "content": "Hi"}}');
+assert.equal(repaired.calls.length, 1);
+assert.deepEqual(JSON.parse(repaired.calls[0].args), { pages: [{ properties: { title: 'Doc' } }], content: 'Hi' });
+assert.equal(repaired.visible, '');
+const unreadable = parseLocalCalls('<tool_call>{"name": "x", "arguments": {"q": nope}}</tool_call>');
+assert.ok(unreadable.invalid && !unreadable.calls.length && !unreadable.visible);
 // Cloud models on the text protocol: other argument keys, arguments as a JSON string, fenced bodies, no closing tag.
 for (const reply of [
   '<tool_call>{"name": "notion__search", "parameters": {"query": "roadmap"}}</tool_call>',

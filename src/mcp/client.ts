@@ -119,6 +119,7 @@ export class McpSession {
     let text = (result?.content ?? []).map(p => (p.type === 'text' ? (p.text ?? '') : p.type === 'resource' ? (p.resource?.text ?? '[binary resource]') : `[${p.type} content]`)).join('\n');
     if (!text.trim() && result?.structuredContent !== undefined) text = JSON.stringify(result.structuredContent);
     if (text.length > 40_000) text = `${text.slice(0, 40_000)}\n[output truncated]`;
-    return result?.isError ? `Error from the connector: ${text}` : text;
+    if (result?.isError) throw new Error(`Error from the connector: ${text}`);
+    return text;
   }
 }

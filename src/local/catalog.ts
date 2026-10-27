@@ -24,10 +24,9 @@ const defaults = { systemPrompt: 'You are Neru, a helpful assistant. Answer clea
 
 export type MobileLocalModel = LocalModel & { gated?: boolean; maxImages?: number; freshEngine?: boolean; /** Trained for tool calling, so it can use connectors (MCP). */ tools?: boolean };
 
-// Models trained for tool calling: Gemma 4 (Edge Gallery's agent models), Qwen 2.5 and 3, Phi-4-mini, Ministral 3,
-// SmolLM3 and Liquid's LFM2 text models. Gemma 3 1B, Gemma 3n, the R1 distill and the vision LFMs were not, and the
-// FunctionGemma fine-tunes only know their own fixed functions.
-const NO_TOOLS = new Set(['gemma-3n-e2b', 'gemma-3n-e4b', 'gemma-3-1b', 'deepseek-r1-distill-qwen-1-5b', 'tinygarden-270m', 'mobileactions-270m', 'lfm2.5-vl-3b', 'lfm2.5-vl-1.6b']);
+// Every chat model gets connectors through Neru's text tool protocol. Only the FunctionGemma fine-tunes are left
+// out: they know nothing but their own fixed functions.
+const NO_TOOLS = new Set(['tinygarden-270m', 'mobileactions-270m']);
 
 export const localModels: MobileLocalModel[] = [
   ...gallery.map(m => ({ ...m, gated: GATED.test(m.repo), tools: m.kind === 'chat' && !NO_TOOLS.has(m.id) })),

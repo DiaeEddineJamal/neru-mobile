@@ -4,11 +4,23 @@
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
+import { requireOptionalNativeModule } from 'expo';
+import { Platform } from 'react-native';
 import { t } from '@/i18n';
 
 export const REDIRECT = 'neru://mcp-auth';
 
-export type Token = { access: string; refresh?: string; expiresAt?: number; clientId: string; clientSecret?: string; tokenEndpoint: string; resource: string };
+export type Token = { access: string; refresh?: string; expiresAt?: number; clientId: string; clientSecret?: string; tokenEndpoint: string; resource: string; googleNative?: boolean; scopes?: string[] };
+const googleNative = requireOptionalNativeModule<{ authorizeGoogle(scopes: string[], interactive: boolean): Promise<{ accessToken: string; scopes: string[] }> }>('NeruLocalAi');
+let googleQueue: Promise<unknown> = Promise.resolve();
+function authorizeGoogle(scopes: string[], interactive: boolean) {
+  const task = googleQueue.catch(() => {}).then(() => {
+    if (!googleNative?.authorizeGoogle) throw new Error(t('Install the updated Neru Android build to connect Google accounts.'));
+    return googleNative.authorizeGoogle(scopes, interactive);
+  });
+  googleQueue = task;
+  return task;
+}
 
 const base64url = (b64: string) => b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const form = (fields: Record<string, string | undefined>) =>
@@ -87,6 +99,11 @@ function tokenFrom(body: Record<string, unknown>, base: Omit<Token, 'access'>, p
 export async function accessToken(id: string): Promise<string | null> {
   const token = await loadToken(id);
   if (!token) return null;
+  // Play Services owns expiry and token renewal; a silent authorization never opens a consent screen.
+  if (token.googleNative) {
+    try { return (await authorizeGoogle(token.scopes ?? [], false)).accessToken; }
+    catch { return null; }
+  }
   if (!token.expiresAt || token.expiresAt > Date.now()) return token.access;
   if (!token.refresh || !token.tokenEndpoint) return null;
   const res = await fetch(token.tokenEndpoint, {
@@ -141,6 +158,12 @@ export async function signIn(id: string, url: string, wwwAuthenticate: string | 
  * Neru uses the Google OAuth client ID from app.json (an iOS-type client, whose reversed ID is Neru's return link).
  */
 export async function signInGoogle(id: string, clientId: string, scopes: string, resource: string) {
+  if (Platform.OS === 'android') {
+    if (!googleNative?.authorizeGoogle) throw new Error(t('Install the updated Neru Android build to connect Google accounts.'));
+    const grant = await authorizeGoogle(scopes.split(/\s+/).filter(Boolean), true);
+    await storeToken(id, { access: grant.accessToken, clientId: 'android', tokenEndpoint: '', resource, googleNative: true, scopes: grant.scopes });
+    return;
+  }
   if (!clientId) throw new Error(t('Google sign-in is not set up in this build. Add a Google OAuth client ID to app.json → extra.googleClientId, or use Gmail from your paired desktop.'));
   const redirect = `com.googleusercontent.apps.${clientId.replace(/\.apps\.googleusercontent\.com$/, '')}:/oauth2redirect`;
   const verifier = base64url(btoa(String.fromCharCode(...Crypto.getRandomBytes(32))));

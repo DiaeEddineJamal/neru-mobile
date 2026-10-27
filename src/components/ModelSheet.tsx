@@ -7,7 +7,6 @@ import { ModelMark } from '@/components/ModelMark';
 import { ModelSearch } from '@/components/ModelSearch';
 import { haptic } from '@/haptics';
 import { t } from '@/i18n';
-import { toolSupport } from '@/llm/tools';
 import { localModels, sizeLabel } from '@/local/catalog';
 import { refreshDownloads, useDownloads } from '@/local/models';
 import { chooseModel, modelsFor, presetOf, privacyBlock, setModelSheet, useStore } from '@/store';
@@ -101,12 +100,11 @@ export function ModelSheet() {
               : models.length === 0 ? <Text style={[s.note, { color: c.muted }]}>{q ? t('No match.') : t('No chat models on this key.')}</Text>
               : <View accessibilityRole="radiogroup" style={{ gap: 8 }}>{models.slice(0, limits[id] ?? 30).map(m => {
                 const selected = current.providerId === id && current.model === m;
-                const tools = toolSupport(id, m);
-                return <Pressable key={m} onPress={() => pick(id, m)} accessibilityRole="radio" accessibilityState={{ checked: selected }} style={({ pressed }) => [s.card, { backgroundColor: pressed ? c.surface3 : c.surface2, borderColor: selected ? c.text : 'transparent' }]}>
+                                return <Pressable key={m} onPress={() => pick(id, m)} accessibilityRole="radio" accessibilityState={{ checked: selected }} style={({ pressed }) => [s.card, { backgroundColor: pressed ? c.surface3 : c.surface2, borderColor: selected ? c.text : 'transparent' }]}>
                   <ModelMark model={m} providerId={id} local={false} size={32} />
                   <View style={s.copy}>
                     <Text style={[s.name, { color: c.text }]}>{m}</Text>
-                    {tools !== 'unknown' ? <View style={s.tags}><CapabilityTag kind={tools === 'yes' ? 'tools' : 'noTools'} small /></View> : null}
+                    <View style={s.tags}><CapabilityTag kind="tools" small /></View>
                   </View>
                   {selection(selected)}
                 </Pressable>;

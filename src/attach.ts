@@ -9,11 +9,10 @@ import type { Attachment } from '@/store';
 import { uid } from '@/store';
 import { notice } from '@/ui/confirm';
 import { t } from '@/i18n';
+import { readDocument } from '@/documents';
 
 // Images go to vision models as base64; keep them modest so a request stays small.
 const IMAGE = { quality: 0.7, base64: true } as const;
-/** Text files up to this size are sent inline; larger or binary files go by name only. */
-const MAX_TEXT = 100_000;
 
 const fromImage = (a: ImagePicker.ImagePickerAsset): Attachment => ({
   id: uid(),
@@ -77,20 +76,20 @@ export async function pickPhotos(target: string | null = null): Promise<Attachme
   return imagePick(target, () => ImagePicker.launchImageLibraryAsync({ ...IMAGE, mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 5 }));
 }
 
-const isText = (mime: string, name: string) =>
-  mime.startsWith('text/') || /json|xml|javascript|typescript|yaml|toml|csv|markdown/.test(mime) || /\.(md|txt|json|ya?ml|toml|csv|tsx?|jsx?|py|rs|go|java|kt|swift|c|cpp|h|cs|rb|php|sh|sql|html|css)$/i.test(name);
-
 export async function pickFiles(): Promise<Attachment[]> {
   const r = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
   if (r.canceled) return [];
-  return Promise.all(
-    r.assets.map(async a => {
+  const attachments: Attachment[] = [];
+  // One extraction at a time keeps memory bounded when several documents are selected.
+  for (const a of r.assets) {
       const mime = a.mimeType ?? 'application/octet-stream';
-      if (mime.startsWith('image/')) return { id: uid(), kind: 'image' as const, name: a.name, uri: a.uri, mime };
-      const text = isText(mime, a.name) && (a.size ?? 0) <= MAX_TEXT ? await new File(a.uri).text().catch(() => undefined) : undefined;
-      return { id: uid(), kind: 'file' as const, name: a.name, uri: a.uri, mime, text };
-    }),
-  );
+      if (mime.startsWith('image/')) { attachments.push({ id: uid(), kind: 'image', name: a.name, uri: a.uri, mime }); continue; }
+      try {
+        const extracted = await readDocument(a.uri, a.name, mime);
+        attachments.push({ id: uid(), kind: 'file', name: a.name, uri: a.uri, mime, text: extracted.text });
+      } catch (error) { await notice({ title: t('Could not read {name}', { name: a.name }), message: error instanceof Error ? error.message : String(error), icon: 'file' }); }
+  }
+  return attachments;
 }
 
 /** Images as the desktop's composer takes them: a name and a data URL. Files that are gone are skipped. */

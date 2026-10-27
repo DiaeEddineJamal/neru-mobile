@@ -1,5 +1,15 @@
 # Neru mobile changelog
 
+## 0.15.0 · 2026-10-27
+
+**More from your phone.** Warm local models, readable documents, better tool calls and updates that download inside Neru.
+
+- **Smoother local models.** Reuse loaded models and conversation state, limit CPU contention, batch streaming updates and release idle models after a minute in the background.
+- **More reliable connectors.** Every chat model, on your phone or in the cloud, can now use every connector tool. Models without a tool API get them as text. Also handles Gemma tool calls and nested Notion arguments, and shows connector errors accurately.
+- **Read your documents.** Attach PDF, Word, PowerPoint, Excel and text files. Neru extracts their text on the phone, including speaker notes, spreadsheet cells and Latin-script OCR for scanned PDFs, within size and context limits.
+- **Google on Android.** Use Android Google authorization for Gmail, Drive and Calendar. The app owner must first register the Android package and signing certificate in Google Cloud; see the setup guide.
+- **Updates inside Neru.** Download a compatible APK with progress, verify its size and available checksum, and open Android’s installer. Releases without an APK are no longer sent to your browser.
+
 ## 0.14.0 · 2026-10-26
 
 **Tools in your pocket.** Connect Jira, Gmail, GitHub and more to any model, hand your desktop work from your phone, and update Neru in one tap.

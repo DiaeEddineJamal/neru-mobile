@@ -13,7 +13,7 @@ const mobileUx: Part = {
     'Chat': 'Discussion', 'Vision': 'Vision', 'Function calling': 'Appel de fonctions', 'Photo selection': 'Sélection photo', 'MCP tools': 'Outils MCP', 'No tools': 'Sans outils',
     '{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.': '{model} ne peut pas utiliser les outils des connecteurs : il répond sans eux. Choisissez un modèle marqué Outils MCP pour les utiliser.',
     'Downloading… {n}%': 'Téléchargement… {n} %', 'Install': 'Installer', 'Open the release page': 'Ouvrir la page de la version',
-    'The download stopped ({reason}). Try again, or get it from the release page.': 'Le téléchargement s’est arrêté ({reason}). Réessayez, ou récupérez-la sur la page de la version.',
+    'The download stopped ({reason}). Tap Update now to try again.': 'Le téléchargement s’est arrêté ({reason}). Touchez Mettre à jour pour réessayer.',
   },
   ar: {
     'Local': 'محلي', 'Cloud': 'سحابي', 'Browse models': 'تصفح النماذج', 'Installed models': 'النماذج المثبتة',
@@ -27,7 +27,7 @@ const mobileUx: Part = {
     'Chat': 'دردشة', 'Vision': 'رؤية', 'Function calling': 'استدعاء الدوال', 'Photo selection': 'تحديد في الصور', 'MCP tools': 'أدوات MCP', 'No tools': 'بلا أدوات',
     '{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.': 'لا يستطيع {model} استخدام أدوات الموصلات، لذا يجيب بدونها. اختر نموذجًا يحمل علامة أدوات MCP لاستخدامها.',
     'Downloading… {n}%': 'جارٍ التنزيل… {n}٪', 'Install': 'تثبيت', 'Open the release page': 'فتح صفحة الإصدار',
-    'The download stopped ({reason}). Try again, or get it from the release page.': 'توقف التنزيل ({reason}). حاول مجددًا، أو نزّله من صفحة الإصدار.',
+    'The download stopped ({reason}). Tap Update now to try again.': 'توقف التنزيل ({reason}). اضغط «تحديث الآن» للمحاولة مجددًا.',
   },
   ary: {
     'Local': 'محلي', 'Cloud': 'سحابي', 'Browse models': 'قلّب فالنماذج', 'Installed models': 'النماذج المثبتة',
@@ -41,7 +41,7 @@ const mobileUx: Part = {
     'Chat': 'دردشة', 'Vision': 'رؤية', 'Function calling': 'استدعاء الدوال', 'Photo selection': 'تحديد فالتصاور', 'MCP tools': 'أدوات MCP', 'No tools': 'بلا أدوات',
     '{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.': '{model} ما يقدرش يستعمل أدوات الموصلات، داكشي علاش كيجاوب بلاهم. ختار نموذج فيه علامة أدوات MCP باش تستعملهم.',
     'Downloading… {n}%': 'كيتنزّل… {n}٪', 'Install': 'ثبّت', 'Open the release page': 'حلّ صفحة الإصدار',
-    'The download stopped ({reason}). Try again, or get it from the release page.': 'التنزيل حبس ({reason}). عاود جرّب، ولا جيبو من صفحة الإصدار.',
+    'The download stopped ({reason}). Tap Update now to try again.': 'التنزيل حبس ({reason}). ضغط على «حدّث دابا» باش تعاود.',
   },
 };
 export default mobileUx;

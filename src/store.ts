@@ -5,10 +5,11 @@ import { deleteChatRow, deleteMessage, getApiKey, kvGetSync, kvSet, loadChats, s
 import { clearComposerDraft } from '@/drafts';
 import { nextModel, reason, recordSuccess, shouldSwitch } from '@/llm/fallback';
 import { listModels, streamChat, type ChatMessage, type ProviderConfig, type ToolCall } from '@/llm/stream';
-import { beforeCall, localToolPrompt, mayRun, parseArgs, parseLocalCalls, rejectsTools, rememberNoTools, toolSpecs, toolSupport } from '@/llm/tools';
+import { beforeCall, CLOUD_TOOLS_CHARS, coerceArgs, localToolPrompt, localToolsForTask, mayRun, parseArgs, parseLocalCalls, rejectsTools, rememberNoTools, toolMode, toolSpecs, unsupportedTools } from '@/llm/tools';
 import { chatTools, runTool } from '@/mcp/store';
 import { localModel } from '@/local/catalog';
-import { streamLocal } from '@/local/runtime';
+import { preloadLocal, streamLocal, unloadLocal } from '@/local/runtime';
+import { readDocument } from '@/documents';
 import { formatForModel, privacyAllows, privacyLabels, privacyOf, providerPresets, type PrivacyRule } from '@/shared/providerCatalog';
 import { redact } from '@/shared/redact';
 import { setLanguage, t as tx, voiceLocale, type LanguageSetting } from '@/i18n';
@@ -146,6 +147,8 @@ export const setModelSheet = (open: boolean) => set({ modelSheet: open });
 
 export function chooseModel(providerId: string, model: string) {
   updateSettings({ providerId, model });
+  if (providerId === 'on-device' && model) preloadLocal(model);
+  else void unloadLocal().catch(() => {});
 }
 
 // ---- chats ----
@@ -213,7 +216,10 @@ export const NO_MODEL = 'Pick a model first. Add a free key and choose one of it
 const SYSTEM =
   'You are Neru, a helpful assistant in the Neru mobile app. Answer clearly and concisely; the reader is on a phone, so prefer short paragraphs and lists. Use Markdown, and fenced code blocks with a language for code.';
 
-async function imagePart(a: Attachment) {
+async function imagePart(a: Attachment, local = false) {
+  // Native inference reads the file directly and downsizes it. Avoid copying every historical photo into JS
+  // as base64, which adds disk reads and large temporary strings before a local reply can start.
+  if (local) return { mime: a.mime, base64: '', uri: a.uri };
   if (a.base64) return { mime: a.mime, base64: a.base64, uri: a.uri };
   try {
     return { mime: a.mime, base64: await new File(a.uri).base64(), uri: a.uri };
@@ -230,13 +236,19 @@ export function profilePrompt(s: Settings = state.settings) {
   return [name ? `The user's name is ${name}. Use it now and then, naturally, not in every reply.` : '', who].filter(Boolean).join(' ');
 }
 
-async function history(chat: Chat): Promise<ChatMessage[]> {
+async function history(chat: Chat, local = false): Promise<ChatMessage[]> {
   const out: ChatMessage[] = [{ role: 'system', text: [SYSTEM, profilePrompt()].filter(Boolean).join('\n\n') }];
   for (const m of chat.messages) {
     if (m.role === 'assistant' && (m.error || !m.text)) continue;
-    const images = (await Promise.all((m.attachments ?? []).filter(a => a.kind === 'image').map(imagePart))).filter(x => x !== null);
+    const images = (await Promise.all((m.attachments ?? []).filter(a => a.kind === 'image').map(a => imagePart(a, local)))).filter(x => x !== null);
     const fence = '```';
-    const files = (m.attachments ?? []).filter(a => a.kind === 'file').map(a => (a.text ? `File ${a.name}:\n${fence}\n${a.text}\n${fence}` : `[Attached file: ${a.name}]`));
+    const files: string[] = [];
+    for (const a of (m.attachments ?? []).filter(a => a.kind === 'file')) {
+      try {
+        const body = a.text ?? (await readDocument(a.uri, a.name, a.mime)).text;
+        files.push(`File ${a.name}:\n${fence}\n${body}\n${fence}`);
+      } catch (error) { files.push(`[Could not read ${a.name}: ${error instanceof Error ? error.message : String(error)}]`); }
+    }
     out.push({ role: m.role, text: [m.text, ...files].filter(Boolean).join('\n\n') || '(image)', images: images.length ? images : undefined });
   }
   return out;
@@ -263,11 +275,12 @@ async function streamReply(chatId: string) {
     flushTimer = null;
     updateChat(chatId, c => ({ ...c, messages: c.messages.map(m => (m.id === reply.id ? { ...m, text, reasoning: reasoning || undefined, tools: steps.length ? steps : undefined } : m)) }));
   };
-  const schedule = () => (flushTimer ??= setTimeout(flush, 33));
+  // An on-device reply shares the processor with the screen: half the redraws leave more of it to the model.
+  const schedule = () => (flushTimer ??= setTimeout(flush, providerId === 'on-device' ? 66 : 33));
 
   const chat = chatOf(chatId)!;
-  const messages = await history({ ...chat, messages: chat.messages.filter(m => m.id !== reply.id) });
   let { providerId, model } = state.settings;
+  const messages = await history({ ...chat, messages: chat.messages.filter(m => m.id !== reply.id) }, providerId === 'on-device');
   let error: string | undefined;
   const rule = state.settings.privacy;
   // Tools from the phone's connectors, and the paired desktop's while it is connected.
@@ -286,13 +299,22 @@ async function streamReply(chatId: string) {
       break;
     }
     const local = providerId === 'on-device';
-    // Only models that can call tools get them: a small model handed a tool list loses its context to it.
-    let tools = toolSupport(providerId, model) === 'no' ? [] : connected;
+    // Models with a tool API get native definitions; the rest (every phone model, and cloud models whose API refuses
+    // tools) read the same tools as a text protocol and write <tool_call> blocks that Neru runs.
+    let tools = toolMode(providerId, model) === 'none' ? [] : connected;
+    let textTools = toolMode(providerId, model) === 'text';
     if (connected.length && !tools.length) set({ notice: { chatId, text: tx('{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.', { model: local ? (localModel(model)?.name ?? model) : model }) } });
     try {
       // The conversation for this reply; tool calls and their results are added to it round by round.
       const working: ChatMessage[] = [...messages];
-      if (local && tools.length) working[0] = { ...working[0], text: `${working[0].text}\n\n${localToolPrompt(tools)}` };
+      const task = ([...messages].reverse().find(m => m.role === 'user')?.text ?? '').slice(0, 800);
+      const useTextTools = () => {
+        textTools = true;
+        // A phone model's small context gets the tools for the app the user named; a cloud model gets them all.
+        if (local) tools = localToolsForTask(tools, task);
+        working[0] = { ...messages[0], text: `${messages[0].text}\n\n${localToolPrompt(tools, local ? undefined : CLOUD_TOOLS_CHARS)}` };
+      };
+      if (textTools && tools.length) useTextTools();
       let shown = '';
       for (let round = 0; round < MAX_TOOL_ROUNDS && !controller.signal.aborted; round++) {
         let said = '';
@@ -301,38 +323,60 @@ async function streamReply(chatId: string) {
         const onUsage = (i: number, o: number) => (used = { input: Math.max(used.input, i), output: Math.max(used.output, o) });
         const onDelta = (d: string) => {
           said += d;
-          text = shown + (local && tools.length ? beforeCall(said) : said);
+          text = shown + (textTools && tools.length ? beforeCall(said) : said);
           schedule();
         };
         let calls: ToolCall[];
         if (local) {
-          await streamLocal(model, working, onDelta, controller.signal, phase => set({ notice: { chatId, text: phase === 'loading' ? tx('Loading the model on your phone…') : tx('Running on this phone · Offline') } }), r => ((reasoning += r), schedule()));
+          await streamLocal(model, working, onDelta, controller.signal, phase => set({ notice: { chatId, text: phase === 'loading' ? tx('Loading the model on your phone…') : tx('Running on this phone · Offline') } }), r => ((reasoning += r), schedule()), tools.length > 0);
           const parsed = parseLocalCalls(said);
           calls = tools.length ? parsed.calls : [];
           text = shown + (calls.length ? parsed.visible : said);
         } else {
           const sent = state.settings.redact ? hideSecrets(working) : { messages: working, hidden: 0 };
           if (sent.hidden && round === 0) set({ notice: { chatId, text: sent.hidden === 1 ? tx('Hid 1 secret (keys, tokens or passwords) before sending.') : tx('Hid {n} secrets (keys, tokens or passwords) before sending.', { n: sent.hidden }) } });
-          const ask = () => streamChat(config, sent.messages, { onDelta, onReasoning: r => ((reasoning += r), schedule()), onUsage }, controller.signal, toolSpecs(tools));
+          // Built per request: switching to text tools rewrites the system message.
+          const ask = (strict = false) => streamChat(config, state.settings.redact ? hideSecrets(working).messages : working, { onDelta, onReasoning: r => ((reasoning += r), schedule()), onUsage }, controller.signal, textTools ? [] : toolSpecs(tools), strict);
+          // A request the provider refused outright, before any text: one it may accept with other tool schemas.
+          const refused = (err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            return !said && !controller.signal.aborted && (rejectsTools(message) || /http 4(00|22)\b/i.test(message));
+          };
           try {
             calls = await ask();
           } catch (err) {
-            // The model or its host takes no tool definitions: remember that, and ask again without them.
-            const message = err instanceof Error ? err.message : String(err);
-            if (!tools.length || said || controller.signal.aborted || !rejectsTools(message)) throw err;
-            rememberNoTools(providerId, model);
-            tools = [];
-            set({ notice: { chatId, text: tx('{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.', { model }) } });
-            calls = await ask();
+            if (!tools.length || textTools || !refused(err)) throw err;
+            try {
+              // Some hosts reject JSON Schema features in a connector's tools (Gemini: "Request contains an invalid
+              // argument"): try the strict subset every provider accepts.
+              if (unsupportedTools(err instanceof Error ? err.message : String(err))) throw err;
+              calls = await ask(true);
+            } catch (again) {
+              if (!refused(again)) throw again;
+              // The model or its host takes no tool definitions: give it the same tools as text instead, and
+              // remember that for its next chats.
+              useTextTools();
+              calls = await ask();
+              if (unsupportedTools(again instanceof Error ? again.message : String(again))) rememberNoTools(providerId, model);
+            }
+          }
+          if (textTools && tools.length) {
+            const parsed = parseLocalCalls(said);
+            calls = parsed.calls;
+            text = shown + (calls.length ? parsed.visible : said);
           }
           void recordSuccess(config);
         }
         recordUsage(providerId, model, used.input || estimateTokens(working.map(m => m.text).join(' ')), used.output || estimateTokens(said));
         if (!calls.length || controller.signal.aborted) break;
-        working.push({ role: 'assistant', text: said, toolCalls: local ? undefined : calls });
+        working.push({ role: 'assistant', text: said, toolCalls: textTools ? undefined : calls });
         for (const call of calls) {
           const tool = tools.find(t => t.fn === call.name);
-          const args = parseArgs(call.args);
+          // Back to the shapes the tool declared: Gemini writes free-form objects and number enums as text.
+          let args: Record<string, unknown> = {};
+          let argumentError = '';
+          try { args = tool ? coerceArgs(parseArgs(call.args), tool.schema) : parseArgs(call.args); }
+          catch (err) { argumentError = err instanceof Error ? err.message : String(err); }
           let result: string;
           const index = steps.length;
           steps = [...steps, { name: tool?.title ?? call.name, label: tool?.label ?? tx('Unknown tool'), status: 'running' }];
@@ -340,6 +384,9 @@ async function streamReply(chatId: string) {
           const mark = (status: ToolStep['status']) => ((steps = steps.map((s, i) => (i === index ? { ...s, status } : s))), schedule());
           if (!tool) {
             result = `There is no tool named ${call.name}.`;
+            mark('failed');
+          } else if (argumentError) {
+            result = argumentError;
             mark('failed');
           } else if (!(await mayRun(chatId, tool, args, controller.signal))) {
             result = 'The user declined to run this tool. Do not try it again unless they ask.';
@@ -354,7 +401,8 @@ async function streamReply(chatId: string) {
             }
           }
           toolsRan = true;
-          if (local) working.push({ role: 'user', text: `<tool_result name="${call.name}">\n${result.slice(0, 6000)}\n</tool_result>` });
+          // A phone model reads about 1,000 tokens of a result; more would crowd out the conversation.
+          if (textTools) working.push({ role: 'user', text: `Original request: ${task}\n\n<tool_result name="${call.name}">\n${result.slice(0, local ? 3000 : 60000)}\n</tool_result>` });
           else working.push({ role: 'tool', toolCallId: call.id, name: call.name, text: result });
         }
         shown = text ? `${text}\n\n` : '';
@@ -396,6 +444,9 @@ async function streamReply(chatId: string) {
 /** Names a new chat from its first exchange with the model that answered, on-device ones included, like
  * Claude does; keeps the first words if this fails. */
 async function autoTitle(chatId: string, providerId: string, model: string, question: string, answer: string) {
+  // On the phone's own model a second run would hold the processor right after the reply, and drop the kept
+  // conversation that makes the next reply fast: the chat keeps its first words as its name instead.
+  if (providerId === 'on-device') return;
   let title = '';
   const prompt: ChatMessage[] = [
     { role: 'system', text: 'You name conversations. Reply with a short title of 2 to 6 words that says what this conversation is about, in the language the user wrote in. Title only: no quotes, no emoji, no punctuation at the end.' },
@@ -403,10 +454,9 @@ async function autoTitle(chatId: string, providerId: string, model: string, ques
   ];
   const timeout = new AbortController();
   titling = timeout;
-  const timer = setTimeout(() => timeout.abort(), providerId === 'on-device' ? 45_000 : 15_000);
+  const timer = setTimeout(() => timeout.abort(), 15_000);
   try {
-    if (providerId === 'on-device') await streamLocal(model, prompt, d => (title += d), timeout.signal, () => {}, () => {});
-    else await streamChat(await configFor(providerId, model), prompt, { onDelta: d => (title += d) }, timeout.signal);
+    await streamChat(await configFor(providerId, model), prompt, { onDelta: d => (title += d) }, timeout.signal);
   } catch {
     return;
   } finally {

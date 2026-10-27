@@ -31,6 +31,7 @@ function boot() {
     'expo-document-picker': {}, 'expo-file-system': {}, 'expo-image-picker': picker,
     '@/db': db, '@/drafts': drafts, '@/store': { uid: () => `image-${++nextId}` },
     '@/ui/confirm': { notice: async () => {} }, '@/i18n': { t: s => s },
+    '@/documents': { readDocument: async () => ({ text: 'Extracted document text', truncated: false, format: 'text' }) },
   });
   return { drafts, attach };
 }

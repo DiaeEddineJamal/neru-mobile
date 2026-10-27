@@ -1,5 +1,38 @@
 [
   {
+    "version": "0.15.0",
+    "date": "2026-10-27",
+    "title": "More from your phone",
+    "summary": "Warm local models, readable documents, better tool calls and updates that download inside Neru.",
+    "items": [
+      {
+        "icon": "lab",
+        "title": "Smoother local models",
+        "text": "Reuse loaded models and conversation state, limit CPU contention, batch streaming updates and release idle models after a minute in the background."
+      },
+      {
+        "icon": "wrench",
+        "title": "More reliable connectors",
+        "text": "Every chat model, on your phone or in the cloud, can now use every connector tool. Models without a tool API get them as text. Also handles Gemma tool calls and nested Notion arguments, and shows connector errors accurately."
+      },
+      {
+        "icon": "file",
+        "title": "Read your documents",
+        "text": "Attach PDF, Word, PowerPoint, Excel and text files. Neru extracts their text on the phone, including speaker notes, spreadsheet cells and Latin-script OCR for scanned PDFs, within size and context limits."
+      },
+      {
+        "icon": "link",
+        "title": "Google on Android",
+        "text": "Use Android Google authorization for Gmail, Drive and Calendar. The app owner must first register the Android package and signing certificate in Google Cloud; see the setup guide."
+      },
+      {
+        "icon": "download",
+        "title": "Updates inside Neru",
+        "text": "Download a compatible APK with progress, verify its size and available checksum, and open Android’s installer. Releases without an APK are no longer sent to your browser."
+      }
+    ]
+  },
+  {
     "version": "0.14.0",
     "date": "2026-10-26",
     "title": "Tools in your pocket",

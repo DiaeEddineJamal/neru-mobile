@@ -30,6 +30,7 @@ import { ToolApproval } from '@/ui/tool-approval';
 import { MascotImage } from '@/ui/mascot';
 import { ToolResult } from '@/ui/tool-result';
 import { answerToolAsk, useToolAsk } from '@/llm/tools';
+import { preloadLocal } from '@/local/runtime';
 
 
 /** Markdown read aloud sounds like punctuation soup; speak the words only. */
@@ -58,6 +59,11 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   }, [streaming]);
   const notice = useStore(st => (st.notice && st.notice.chatId === chatId ? st.notice.text : null));
   const hasModel = useStore(st => !!st.settings.model);
+  // An on-device model starts loading as the chat opens, while the question is still being typed.
+  const localModelId = useStore(st => (st.settings.providerId === 'on-device' ? st.settings.model : ''));
+  useEffect(() => {
+    if (localModelId) preloadLocal(localModelId);
+  }, [localModelId]);
   const list = useRef<FlatList<Message>>(null);
   const { text, setText, attachments: pending, setAttachments: setPending } = useComposerDraft(chatId ?? 'new');
   const queuedPicker = useRef<(() => Promise<Attachment[]>) | null>(null);
@@ -216,8 +222,9 @@ export function ChatView({ chatId }: { chatId: string | null }) {
           <Animated.FlatList
             ref={list}
             inverted
-            // Rows glide to make room for a new message instead of jumping, like iMessage.
-            itemLayoutAnimation={ROW_GLIDE}
+            // Rows glide to make room for a new message instead of jumping, like iMessage; not while a reply streams,
+            // when the growing reply would restart the glide many times a second.
+            itemLayoutAnimation={streaming ? undefined : ROW_GLIDE}
             data={reversed}
             keyExtractor={m => m.id}
             renderItem={render}

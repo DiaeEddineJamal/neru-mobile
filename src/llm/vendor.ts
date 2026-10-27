@@ -70,3 +70,8 @@ export function rejectsTools(error: string) {
   if (/enable-auto-tool-choice|tool-call-parser/.test(e)) return true; // vLLM hosts started without tool parsing
   return /\b(tools?|tool_choice|tool use|tool calling|function[ _]call(ing)?|functions)\b/.test(e) && /not support|unsupported|does not support|doesn't support|not available|not enabled|not allowed|invalid|unknown|unrecognized|extra (inputs|fields)|unexpected/.test(e);
 }
+
+/** Only an explicit lack of tool support should disable tools in future chats. A bad schema is repairable. */
+export function unsupportedTools(error: string) {
+  return rejectsTools(error) && /not support|unsupported|not available|not enabled|enable-auto-tool-choice|tool-call-parser|no endpoints found/i.test(error);
+}

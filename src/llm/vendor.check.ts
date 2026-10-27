@@ -1,7 +1,7 @@
 // Self-check for model makers and tool support: `node src/llm/vendor.check.ts`.
 import assert from 'node:assert';
 
-import { cloudToolSupport, rejectsTools, vendorOf } from './vendor.ts';
+import { cloudToolSupport, rejectsTools, unsupportedTools, vendorOf } from './vendor.ts';
 
 // Pocket Lab repos and cloud ids map to their maker; DeepSeek's Qwen distill stays DeepSeek's.
 for (const [id, logo] of [
@@ -28,4 +28,8 @@ assert.ok(rejectsTools('HTTP 400: Function calling is not enabled for models/gem
 assert.ok(rejectsTools('HTTP 400: "auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set'));
 assert.ok(!rejectsTools('HTTP 429: Rate limit reached for tools'), 'a rate limit is not a tools problem');
 assert.ok(!rejectsTools('HTTP 400: context length exceeded'));
+assert.ok(!unsupportedTools('HTTP 400: tools[0].parameters has an invalid argument'), 'a bad tool schema must not permanently disable MCP');
+assert.ok(!unsupportedTools('HTTP 400: unknown function argument'), 'an argument error can be corrected');
+assert.ok(unsupportedTools('HTTP 400: This model does not support tools'));
+assert.ok(unsupportedTools('HTTP 404: No endpoints found that support tool use.'));
 console.log('vendors ok');

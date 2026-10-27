@@ -2,7 +2,7 @@
 // for connectors (MCP): a reply may ask for tools, and the next request carries their results.
 import { fetch } from 'expo/fetch';
 
-import { CallCollector, cleanSchema, parseEvent, type StreamHandlers, type ToolCall } from '@/llm/parse';
+import { CallCollector, cleanSchema, geminiSchema, parseEvent, type StreamHandlers, type ToolCall } from '@/llm/parse';
 import type { ApiFormat } from '@/shared/providerCatalog';
 
 export { CallCollector, cleanSchema, parseEvent, type StreamHandlers, type ToolCall };
@@ -36,16 +36,33 @@ export function headers(c: ProviderConfig): Record<string, string> {
 const system = (messages: ChatMessage[]) => messages.filter(m => m.role === 'system').map(m => m.text).join('\n\n');
 const turns = (messages: ChatMessage[]) => messages.filter(m => m.role !== 'system');
 
-function openaiChat(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]) {
+/** Providers take at most 128 tool definitions per request. */
+const MAX_TOOLS = 128;
+
+const isGemini = (c: ProviderConfig) => c.providerId === 'gemini' || c.baseUrl.includes('generativelanguage.googleapis.com');
+
+/** Parameters in the strictest schema subset (Gemini's), which every provider accepts; an object when there are none. */
+const strictParams = (t: ToolSpec) => geminiSchema(t.parameters) ?? { type: 'object', properties: {} };
+/** Parameters as a provider takes them: plain JSON Schema, or the strict subset after a provider refused it. */
+const params = (t: ToolSpec, strict: boolean) => (strict ? strictParams(t) : cleanSchema(t.parameters));
+
+/** One tool for Chat Completions; Gemini gets its own schema subset, and no parameters when there are none. */
+function chatTool(c: ProviderConfig, t: ToolSpec, strict: boolean) {
+  if (!isGemini(c)) return { type: 'function', function: { name: t.name, description: t.description, parameters: params(t, strict) } };
+  const parameters = geminiSchema(t.parameters);
+  return { type: 'function', function: { name: t.name, description: t.description, ...(parameters ? { parameters } : {}) } };
+}
+
+function openaiChat(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[], strict: boolean) {
   return {
     model: modelId(c),
     stream: true,
     stream_options: { include_usage: true },
-    ...(tools.length ? { tools: tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: cleanSchema(t.parameters) } })) } : {}),
+    ...(tools.length ? { tools: tools.slice(0, MAX_TOOLS).map(t => chatTool(c, t, strict)) } : {}),
     messages: messages.map(m => {
       if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.text };
       if (m.role === 'assistant' && m.toolCalls?.length)
-        return { role: 'assistant', content: m.text || null, tool_calls: m.toolCalls.map(t => ({ id: t.id, type: 'function', function: { name: t.name, arguments: t.args || '{}' } })) };
+        return { role: 'assistant', content: m.text || null, tool_calls: m.toolCalls.map(t => ({ id: t.id, type: 'function', function: { name: t.name, arguments: t.args || '{}' }, ...(t.extra ? { extra_content: t.extra } : {}) })) };
       return m.images?.length
         ? { role: m.role, content: [{ type: 'text', text: m.text }, ...m.images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.base64}` } }))] }
         : { role: m.role, content: m.text };
@@ -53,13 +70,13 @@ function openaiChat(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[
   };
 }
 
-function responses(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]) {
+function responses(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[], strict: boolean) {
   return {
     model: c.model,
     instructions: system(messages),
     store: false,
     stream: true,
-    ...(tools.length ? { tools: tools.map(t => ({ type: 'function', name: t.name, description: t.description, parameters: cleanSchema(t.parameters) })) } : {}),
+    ...(tools.length ? { tools: tools.slice(0, MAX_TOOLS).map(t => ({ type: 'function', name: t.name, description: t.description, parameters: params(t, strict) })) } : {}),
     input: turns(messages).flatMap((m): Record<string, unknown>[] => {
       if (m.role === 'tool') return [{ type: 'function_call_output', call_id: m.toolCallId, output: m.text }];
       const content = [
@@ -73,7 +90,7 @@ function responses(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]
   };
 }
 
-function anthropic(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]) {
+function anthropic(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[], strict: boolean) {
   const sys = system(messages);
   const out: { role: 'user' | 'assistant'; content: Record<string, unknown>[] }[] = [];
   for (const m of turns(messages)) {
@@ -103,18 +120,18 @@ function anthropic(c: ProviderConfig, messages: ChatMessage[], tools: ToolSpec[]
     max_tokens: /claude-3-5/.test(c.model) ? 8192 : /claude-3-/.test(c.model) ? 4096 : 16000,
     stream: true,
     ...(sys ? { system: sys } : {}),
-    ...(tools.length ? { tools: tools.map(t => ({ name: t.name, description: t.description, input_schema: cleanSchema(t.parameters) })) } : {}),
+    ...(tools.length ? { tools: tools.slice(0, MAX_TOOLS).map(t => ({ name: t.name, description: t.description, input_schema: params(t, strict) })) } : {}),
     messages: out,
   };
 }
 
 /**
  * Streams one reply and returns the tools it asked for. Errors read like the desktop's ("HTTP 429: ..."), so
- * fallback.ts classifies them the same way.
+ * fallback.ts classifies them the same way. `strict` sends tool schemas in the subset every provider accepts.
  */
-export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: StreamHandlers, signal: AbortSignal, tools: ToolSpec[] = []): Promise<ToolCall[]> {
+export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: StreamHandlers, signal: AbortSignal, tools: ToolSpec[] = [], strict = false): Promise<ToolCall[]> {
   const [path, body] =
-    c.format === 'anthropic' ? ['/messages', anthropic(c, messages, tools)] : c.format === 'openai-responses' ? ['/responses', responses(c, messages, tools)] : ['/chat/completions', openaiChat(c, messages, tools)];
+    c.format === 'anthropic' ? ['/messages', anthropic(c, messages, tools, strict)] : c.format === 'openai-responses' ? ['/responses', responses(c, messages, tools, strict)] : ['/chat/completions', openaiChat(c, messages, tools, strict)];
 
   const timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(), FIRST_BYTE_MS);

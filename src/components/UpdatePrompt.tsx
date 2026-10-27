@@ -2,7 +2,7 @@
 // the new APK in the app and opens Android's installer. "Later" hides that version until the next one ships. After
 // installing, What's New takes over.
 import { useEffect, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { appVersion, Hero } from '@/components/WhatsNew';
 import { updateSettings, useStore } from '@/store';
@@ -47,7 +47,7 @@ export function UpdatePrompt() {
       setProgress('ready');
     } catch (e) {
       setProgress(null);
-      setError(t('The download stopped ({reason}). Try again, or get it from the release page.', { reason: e instanceof Error ? e.message : String(e) }));
+      setError(t('The download stopped ({reason}). Tap Update now to try again.', { reason: e instanceof Error ? e.message : String(e) }));
     }
   };
   const downloading = typeof progress === 'number';
@@ -78,7 +78,6 @@ export function UpdatePrompt() {
               disabled={downloading}
               onPress={() => void install()}
             />
-            {error ? <ActionButton title={t('Open the release page')} variant="secondary" icon="link" onPress={() => void Linking.openURL(update.url)} /> : null}
             {!downloading ? <ActionButton title={t('Later')} variant="ghost" onPress={() => (progress === 'ready' ? offerUpdate(null) : later())} /> : null}
           </View>
         </View>

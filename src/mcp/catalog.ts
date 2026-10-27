@@ -6,15 +6,15 @@ import Constants from 'expo-constants';
 export type Auth = 'oauth' | 'token' | 'none' | 'google';
 export type CatalogEntry = { id: string; name: string; description: string; url: string; auth: Auth; logo?: string; scopes?: string; tokenHint?: string };
 
-/** A Google OAuth client ID (iOS type, bundle dev.neru.mobile) in app.json → extra.googleClientId turns on Google. */
+/** Optional iOS browser OAuth client. Android uses Play Services and its registered package/signing certificate. */
 export const GOOGLE_CLIENT_ID = (Constants.expoConfig?.extra?.googleClientId as string | undefined) ?? '';
 
 export const catalog: CatalogEntry[] = [
   { id: 'atlassian', name: 'Atlassian', description: 'Jira issues and Confluence pages', url: 'https://mcp.atlassian.com/v1/mcp', auth: 'oauth', logo: 'atlassian' },
   { id: 'github', name: 'GitHub', description: 'Repos, issues and pull requests', url: 'https://api.githubcopilot.com/mcp/', auth: 'token', logo: 'github', tokenHint: 'A personal access token from github.com/settings/tokens' },
-  { id: 'gmail', name: 'Gmail', description: 'Search, read, label and draft email', url: 'https://gmailmcp.googleapis.com/mcp/v1', auth: 'google', logo: 'gmail', scopes: 'https://www.googleapis.com/auth/gmail.modify' },
-  { id: 'google-calendar', name: 'Google Calendar', description: 'Events, availability and invitations', url: 'https://calendarmcp.googleapis.com/mcp/v1', auth: 'google', logo: 'googlecalendar', scopes: 'https://www.googleapis.com/auth/calendar' },
-  { id: 'google-drive', name: 'Google Drive', description: 'Find and read your files', url: 'https://drivemcp.googleapis.com/mcp/v1', auth: 'google', logo: 'googledrive', scopes: 'https://www.googleapis.com/auth/drive' },
+  { id: 'gmail', name: 'Gmail', description: 'Search, read, label and draft email', url: 'https://gmail.googleapis.com', auth: 'google', logo: 'gmail', scopes: 'https://www.googleapis.com/auth/gmail.modify' },
+  { id: 'google-calendar', name: 'Google Calendar', description: 'Events, availability and invitations', url: 'https://www.googleapis.com/calendar/v3', auth: 'google', logo: 'googlecalendar', scopes: 'https://www.googleapis.com/auth/calendar' },
+  { id: 'google-drive', name: 'Google Drive', description: 'Find and read your files', url: 'https://www.googleapis.com/drive/v3', auth: 'google', logo: 'googledrive', scopes: 'https://www.googleapis.com/auth/drive' },
   { id: 'linear', name: 'Linear', description: 'Issues, projects and cycles', url: 'https://mcp.linear.app/mcp', auth: 'oauth', logo: 'linear' },
   { id: 'notion', name: 'Notion', description: 'Search, read and update pages', url: 'https://mcp.notion.com/mcp', auth: 'oauth', logo: 'notion' },
   { id: 'gitlab', name: 'GitLab', description: 'Projects, issues and merge requests', url: 'https://gitlab.com/api/v4/mcp', auth: 'oauth', logo: 'gitlab' },

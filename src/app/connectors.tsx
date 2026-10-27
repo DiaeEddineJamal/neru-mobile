@@ -9,7 +9,7 @@ import { Icon } from '@/components/Icon';
 import { haptic } from '@/haptics';
 import { t as tx } from '@/i18n';
 import { available, addConnector, connect, refresh, refreshDesktop, removeConnector, setEnabled, setUseDesktop, signOut, useMcp, type Connector } from '@/mcp/store';
-import { GOOGLE_CLIENT_ID, logoUrl, type CatalogEntry } from '@/mcp/catalog';
+import { logoUrl, type CatalogEntry } from '@/mcp/catalog';
 import { useRemote } from '@/remote/store';
 import { updateSettings, useStore } from '@/store';
 import { font, fs, TAP, useBottomPad, useColors } from '@/theme';
@@ -174,9 +174,8 @@ export default function Connectors() {
 
       <Text style={[s.section, { color: c.muted }]}>{tx('ADD A CONNECTOR')}</Text>
       {catalog.map(entry => {
-        const google = entry.auth === 'google' && !GOOGLE_CLIENT_ID;
         return (
-          <Pressable key={entry.id} onPress={() => (google ? toast.show({ title: tx('Google sign-in is not set up in this build'), description: tx('Use Gmail through your paired desktop (Google Workspace connector), or add a Google OAuth client ID to the app.') }) : add(entry))} accessibilityRole="button" android_ripple={{ color: c.surface3 }} style={[s.row, { backgroundColor: c.surface2, borderColor: c.border, opacity: google ? 0.6 : 1 }]}>
+          <Pressable key={entry.id} onPress={() => add(entry)} accessibilityRole="button" android_ripple={{ color: c.surface3 }} style={[s.row, { backgroundColor: c.surface2, borderColor: c.border }]}>
             <Logo logo={entry.logo} name={entry.name} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ fontFamily: font.medium, fontSize: fs.base, color: c.text }}>{entry.name}</Text>

@@ -4,6 +4,8 @@ import { useSyncExternalStore } from 'react';
 
 import { kvGetSync, kvSet } from '@/db';
 import { McpHttpError, McpSession, type McpTool } from '@/mcp/client';
+import { GoogleWorkspaceClient, googleService } from '@/mcp/google';
+import { downloadDocument } from '@/documents';
 import { catalog, GOOGLE_CLIENT_ID, type Auth } from '@/mcp/catalog';
 import { accessToken, loadToken, signIn, signInGoogle, storeBearer, storeToken } from '@/mcp/oauth';
 import { desktopCall, getRemote, subscribeRemote } from '@/remote/store';
@@ -38,11 +40,12 @@ export function useMcp<T>(pick: (s: State) => T): T {
   return useSyncExternalStore(l => (listeners.add(l), () => void listeners.delete(l)), () => pick(state));
 }
 
-const sessions = new Map<string, McpSession>();
+const sessions = new Map<string, McpSession | GoogleWorkspaceClient>();
 const session = (c: Connector) => {
   let s = sessions.get(c.id);
   if (!s || s.url !== c.url) {
-    s = new McpSession(c.url, () => (c.auth === 'none' ? Promise.resolve(null) : accessToken(c.id)));
+    const service = c.auth === 'google' ? googleService(c.url) : null;
+    s = service ? new GoogleWorkspaceClient(c.url, service, () => accessToken(c.id), downloadDocument) : new McpSession(c.url, () => (c.auth === 'none' ? Promise.resolve(null) : accessToken(c.id)));
     sessions.set(c.id, s);
   }
   return s;
@@ -160,7 +163,8 @@ export type ChatTool = {
   source: { kind: 'phone'; id: string; tool: string } | { kind: 'desktop'; fn: string; server: string; tool: string };
 };
 
-const fnName = (prefix: string, tool: string) => `${prefix.replace(/[^a-zA-Z0-9]/g, '_')}__${tool.replace(/[^a-zA-Z0-9_-]/g, '_')}`.slice(0, 64);
+// Gemini wants a name that starts with a letter or underscore, so a connector called "1Password" still gets one.
+const fnName = (prefix: string, tool: string) => `${prefix.replace(/[^a-zA-Z0-9]/g, '_').replace(/^(?=[^a-zA-Z_])/, '_')}__${tool.replace(/[^a-zA-Z0-9_-]/g, '_')}`.slice(0, 64);
 
 /** Every tool a chat may call now: ready phone connectors, then the desktop's when it is connected. */
 export function chatTools(): ChatTool[] {
@@ -205,7 +209,7 @@ export async function runTool(t: ChatTool, args: Record<string, unknown>): Promi
 }
 
 /** Catalog entries not added yet. */
-export const available = () => catalog.filter(e => !state.connectors.some(c => c.url === e.url));
+export const available = () => catalog.filter(e => !state.connectors.some(c => c.url === e.url || (e.auth === 'google' && c.auth === 'google' && googleService(c.url) === googleService(e.url))));
 
 /** Connects every enabled connector, and follows the paired desktop's connection for its tools. Call once. */
 export function startMcp() {

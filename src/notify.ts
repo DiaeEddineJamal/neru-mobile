@@ -3,8 +3,10 @@
 // done with its run, a Team task that finished. Tapping one opens that conversation.
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
+import { useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
 
+import { kvGetSync, kvSet } from '@/db';
 import { scheduleNudges } from '@/nudges';
 import { answerApproval, getRemote, pendingOf, subscribeRemote, wakeRemote, whenConnected } from '@/remote/store';
 import { getState, NO_MODEL, subscribe } from '@/store';
@@ -14,6 +16,29 @@ Notifications.setNotificationHandler({
   // In the foreground the conversation is right there, so only keep it in the list.
   handleNotification: async () => ({ shouldShowBanner: false, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
 });
+
+/** The kinds of note Neru posts, each with its own switch in Settings → Notifications. Check-ins use Settings.nudges. */
+export type NotifyKind = 'replies' | 'approvals' | 'desktop' | 'tasks' | 'teams' | 'digest';
+export type NotifyPrefs = Record<NotifyKind, boolean>;
+const PREFS = 'notify.prefs';
+const DEFAULT_PREFS: NotifyPrefs = { replies: true, approvals: true, desktop: true, tasks: true, teams: true, digest: true };
+let prefs: NotifyPrefs = (() => {
+  try {
+    return { ...DEFAULT_PREFS, ...JSON.parse(kvGetSync(PREFS) ?? '{}') };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+})();
+const prefListeners = new Set<() => void>();
+export const getNotifyPrefs = () => prefs;
+export function setNotifyPref(kind: NotifyKind, on: boolean) {
+  prefs = { ...prefs, [kind]: on };
+  void kvSet(PREFS, JSON.stringify(prefs));
+  prefListeners.forEach(l => l());
+  if (kind === 'digest') void planMorning();
+}
+export const useNotifyPrefs = () => useSyncExternalStore(l => (prefListeners.add(l), () => void prefListeners.delete(l)), () => prefs);
+const wants = (kind: NotifyKind) => prefs[kind];
 
 const away = () => AppState.currentState !== 'active';
 const preview = (text: string) => text.replace(/[#*_`>|~-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
@@ -72,7 +97,7 @@ const MORNING = 'digest-morning';
 async function planMorning() {
   await Notifications.cancelScheduledNotificationAsync(MORNING).catch(() => {});
   const queued = getRemote().queue.filter(t => t.status === 'queued');
-  if (!queued.length || !(await Notifications.getPermissionsAsync()).granted) return;
+  if (!wants('digest') || !queued.length || !(await Notifications.getPermissionsAsync()).granted) return;
   const at = new Date(Math.max(...queued.map(t => t.at)) + 30 * 60_000);
   if (at.getHours() >= 8) at.setDate(at.getDate() + 1);
   at.setHours(8, 0, 0, 0);
@@ -100,7 +125,7 @@ export function startNotifications() {
     const now = getState().streamingChat;
     const finished = streaming && streaming !== now ? streaming : null;
     streaming = now;
-    if (!finished || !away()) return;
+    if (!finished || !away() || !wants('replies')) return;
     const chat = getState().chats.find(c => c.id === finished);
     const last = chat?.messages.at(-1);
     if (!chat || last?.role !== 'assistant') return;
@@ -132,13 +157,15 @@ export function startNotifications() {
     running = new Set(nowRunning.map(s => s.id));
     teamsRunning = new Set(nowTeams.map(t => t.id));
     if (!away()) return;
-    for (const s of freshWaiting) void postApproval(s.id, s.title, s.project);
+    if (wants('approvals')) for (const s of freshWaiting) void postApproval(s.id, s.title, s.project);
     for (const t of doneQueued) {
+      // A queued task stopping to ask counts as an approval; the rest as task updates.
+      if (!wants(t.status === 'waiting' ? 'approvals' : 'tasks')) continue;
       const body = t.status === 'done' ? tx('Your queued task finished.') : t.status === 'waiting' ? tx('Your queued task is waiting for your approval.') : t.status === 'failed' ? (t.error ? tx('Your queued task stopped: {error}', { error: t.error }) : tx('Your queued task stopped: open it to see why')) : tx('Your queued task was canceled.');
       void post(t.title, body, t.sessionId ? { sessionId: t.sessionId } : { tasks: '1' });
     }
-    for (const s of doneRunning) void post(s.title, getRemote().desktopName ? tx('Finished on {desktop} · {project}', { desktop: getRemote().desktopName!, project: s.project }) : tx('Finished on your desktop · {project}', { project: s.project }), { sessionId: s.id });
-    for (const t of doneTeams) void post(t.title, t.failed ? tx('The team stopped with a problem. Open it to see what happened.') : tx('Your team finished working.'), { teamId: t.id });
+    if (wants('desktop')) for (const s of doneRunning) void post(s.title, getRemote().desktopName ? tx('Finished on {desktop} · {project}', { desktop: getRemote().desktopName!, project: s.project }) : tx('Finished on your desktop · {project}', { project: s.project }), { sessionId: s.id });
+    if (wants('teams')) for (const t of doneTeams) void post(t.title, t.failed ? tx('The team stopped with a problem. Open it to see what happened.') : tx('Your team finished working.'), { teamId: t.id });
   });
 
   // Check-ins: planned again whenever Neru is back on screen (so they only come after quiet days) and when the

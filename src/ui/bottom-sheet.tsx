@@ -1,11 +1,12 @@
-// Port of beui.dev/components/motion/bottom-sheet
-// Same vaul-style 0.5s EASE_DRAWER glide for panel and scrim, same elastic drag
-// (0.4 down, 0.02 up), same dismiss rules (fling > 600px/s or drag > 120px).
-// Not ported: snap points (one content-sized height, capped by maxHeight), the
-// scrim's backdrop blur (no blur view installed, so the scrim is a bit denser),
-// Escape key and body scroll lock (the Modal covers both). The drag handle is the
-// whole header, not only the 6px pill, so it is a usable touch target.
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+// Port of beui.dev/components/motion/bottom-sheet, styled like Claude's app sheets: a grabber, a header with the
+// close X (or a back arrow for a sub-page, `onBack`) on the left and a centered bold title, a 32px top radius, the
+// near-black surface for content cards (c.surface2) to sit on, and a fading backdrop.
+// The panel opens on SPRING_PANEL and closes on beUI's 0.5s EASE_DRAWER glide; the drag keeps beUI's elastic
+// (0.4 down, 0.02 up) and dismiss rules (fling > 600px/s or drag > 120px). Haptics: a light tap as it opens, a
+// selection tick when it is dragged shut. Not ported: snap points (one content-sized height, capped by maxHeight,
+// or the whole cap with `fullHeight`), the scrim's backdrop blur, Escape key and body scroll lock (the Modal covers
+// both). The whole header is the drag handle, not only the pill, so it is a usable touch target.
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
@@ -14,9 +15,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { IconButton } from '@/components/Icon';
-import { font, fs, useColors } from '@/theme';
-import { EASE_DRAWER } from '@/ui/motion';
+import { haptic } from '@/haptics';
 import { t } from '@/i18n';
+import { font, useColors, useScheme } from '@/theme';
+import { EASE_DRAWER, SPRING_PANEL } from '@/ui/motion';
 
 const DRAWER = { duration: 500, easing: EASE_DRAWER };
 const DRAWER_REDUCED = { duration: 180, easing: EASE_DRAWER };
@@ -25,10 +27,23 @@ const DISMISS_VELOCITY = 600;
 // Motion's spring back to the drag constraint when dragElastic is set.
 const SNAP_BACK = { stiffness: 200, damping: 40, mass: 1 };
 
-type Props = { open: boolean; onClose: () => void; title?: string; children?: ReactNode; maxHeight?: number; onDismiss?: () => void };
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  children?: ReactNode;
+  maxHeight?: number;
+  /** Runs once the exit glide has landed and the sheet is gone. */
+  onDismiss?: () => void;
+  /** A sub-page inside the sheet: the header shows a back arrow that calls this instead of the close X. */
+  onBack?: () => void;
+  /** Take the whole height cap (85% of the screen, or maxHeight) instead of fitting the content. */
+  fullHeight?: boolean;
+};
 
-export function BottomSheet({ open, onClose, title, children, maxHeight, onDismiss }: Props) {
+export function BottomSheet({ open, onClose, title, children, maxHeight, onDismiss, onBack, fullHeight }: Props) {
   const c = useColors();
+  const light = useScheme() === 'light';
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
   const reduce = useReducedMotion();
@@ -47,29 +62,39 @@ export function BottomSheet({ open, onClose, title, children, maxHeight, onDismi
   const keyboard = useReanimatedKeyboardAnimation();
   const cap = maxHeight ?? screenH * 0.85;
   const dockStyle = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, -keyboard.height.get()) }));
-  const capStyle = useAnimatedStyle(() => ({ maxHeight: Math.min(cap, screenH - insets.top - 16 + keyboard.height.get()) }));
+  const capStyle = useAnimatedStyle(() => {
+    const h = Math.min(cap, screenH - insets.top - 16 + keyboard.height.get());
+    return fullHeight ? { height: h, maxHeight: h } : { maxHeight: h };
+  });
 
+  // The haptic plays once per opening, not on every re-render while open.
+  const wasOpen = useRef(false);
   useEffect(() => {
     if (!mounted) return;
-    const timing = reduce ? DRAWER_REDUCED : DRAWER;
     if (open) {
+      if (!wasOpen.current) haptic.light();
+      wasOpen.current = true;
       drag.set(0);
-      progress.set(withTiming(1, timing));
+      progress.set(reduce ? withTiming(1, DRAWER_REDUCED) : withSpring(1, SPRING_PANEL));
     } else {
-      progress.set(withTiming(0, timing, (done) => {
+      wasOpen.current = false;
+      progress.set(withTiming(0, reduce ? DRAWER_REDUCED : DRAWER, (done) => {
         if (done) scheduleOnRN(finishDismiss);
       }));
     }
   }, [open, mounted, reduce, progress, drag, finishDismiss]);
 
   const pan = Gesture.Pan()
+    .activeOffsetY([-8, 8])
     .onChange((e) => drag.set(e.translationY * (e.translationY > 0 ? 0.4 : 0.02)))
     .onEnd((e) => {
-      if (e.velocityY > DISMISS_VELOCITY || e.translationY > DISMISS_DISTANCE) scheduleOnRN(onClose);
-      else drag.set(withSpring(0, SNAP_BACK));
+      if (e.velocityY > DISMISS_VELOCITY || e.translationY > DISMISS_DISTANCE) {
+        scheduleOnRN(haptic.select);
+        scheduleOnRN(onClose);
+      } else drag.set(withSpring(0, SNAP_BACK));
     });
 
-  const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.get() }));
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, Math.max(0, progress.get())) }));
   const panelStyle = useAnimatedStyle(() =>
     reduce
       ? { opacity: progress.get(), transform: [{ translateY: drag.get() }] }
@@ -79,9 +104,9 @@ export function BottomSheet({ open, onClose, title, children, maxHeight, onDismi
   if (!mounted) return null;
 
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
+    <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onBack ?? onClose}>
       <GestureHandlerRootView style={s.fill}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: `${c.bg}99` }, scrimStyle]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: light ? 'rgba(0,0,0,0.28)' : 'rgba(0,0,0,0.55)' }, scrimStyle]}>
           <Pressable style={s.fill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('Close bottom sheet')} />
         </Animated.View>
         <Animated.View style={[s.fill, s.dock, dockStyle]}>
@@ -89,23 +114,27 @@ export function BottomSheet({ open, onClose, title, children, maxHeight, onDismi
             accessibilityViewIsModal
             accessibilityLabel={title ?? t('Bottom sheet')}
             onLayout={(e) => sheetH.set(e.nativeEvent.layout.height)}
-            style={[s.panel, { backgroundColor: c.bg, borderColor: c.border }, capStyle, panelStyle]}
+            style={[s.panel, { backgroundColor: c.surface, borderColor: light ? c.border : 'transparent' }, capStyle, panelStyle]}
           >
             <GestureDetector gesture={pan}>
-              <View style={s.header}>
-                <View style={s.grabberHit}>
+              <View>
+                <View style={s.grabberRow}>
                   <View style={[s.grabber, { backgroundColor: c.muted }]} />
                 </View>
-
+                <View style={s.titleRow}>
+                  {onBack ? (
+                    <IconButton name="back" label={t('Back')} color={c.text} size={24} onPress={onBack} />
+                  ) : (
+                    <IconButton name="close" label={t('Close bottom sheet')} color={c.text} size={24} onPress={onClose} />
+                  )}
+                  <Text accessibilityRole="header" numberOfLines={1} style={[s.title, { color: c.text }]}>{title}</Text>
+                  <View style={s.side} />
+                </View>
               </View>
             </GestureDetector>
-            <View style={s.titleRow}>
-              <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>{title}</Text>
-              <IconButton name="close" label={t('Close bottom sheet')} color={c.secondary} onPress={onClose} />
-            </View>
             <ScrollView
               style={s.body}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 + insets.bottom }}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24 + insets.bottom }}
               keyboardShouldPersistTaps="handled"
             >
               {children}
@@ -130,10 +159,11 @@ const s = StyleSheet.create({
     borderTopRightRadius: 32,
     overflow: 'hidden',
   },
-  header: { alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
-  grabberHit: { paddingVertical: 4 },
-  grabber: { height: 6, width: 40, borderRadius: 3, opacity: 0.4 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingStart: 20, paddingEnd: 8, paddingBottom: 8 },
-  title: { flex: 1, fontFamily: font.semibold, fontSize: fs.xl },
+  grabberRow: { alignItems: 'center', paddingTop: 10, paddingBottom: 6 },
+  grabber: { height: 5, width: 40, borderRadius: 3, opacity: 0.45 },
+  // The X sits where Claude's does; an empty slot of the same width on the right keeps the title centred.
+  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 10, minHeight: 56 },
+  title: { flex: 1, textAlign: 'center', fontFamily: font.bold, fontSize: 20 },
+  side: { width: 48 },
   body: { flexShrink: 1 },
 });

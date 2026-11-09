@@ -21,12 +21,17 @@ export function isUnavailable(e: string) {
   return has(e, ['http 500', 'http 502', 'http 503', 'http 504', 'http 520', 'http 522', 'http 524', 'http 529', 'overloaded', 'unavailable', 'temporarily', 'model not found', 'model_not_found', 'does not exist', 'unknown model', 'no such model', 'http 404', 'did not start answering', 'stalled', 'timed out', 'connection reset', 'stream failed']);
 }
 
-export const shouldSwitch = (e: string) => isRateLimited(e) || isUnavailable(e);
+/** The provider's safety filter stopped the reply (content_filter, SAFETY, "flagged"). Errors from stream.ts for
+ * such stops contain the word "flagged". */
+export const isFlagged = (e: string) => has(e, ['flagged', 'content_filter', 'content filter', 'finish_reason: safety', 'blocked by safety', 'prohibited_content', 'recitation']);
+
+export const shouldSwitch = (e: string, onFlag = true) => isRateLimited(e) || isUnavailable(e) || (onFlag && isFlagged(e));
 
 /** Why the switch happened, in words for the notice. */
 export function reason(e: string) {
   if (needsCredits(e)) return 'needs credits this account does not have';
   if (isRateLimited(e)) return 'hit its usage limit';
+  if (isFlagged(e)) return 'flagged the message';
   if (has(e, ['did not start answering', 'stalled', 'timed out'])) return 'is not responding';
   if (has(e, ['not found', 'does not exist', 'http 404', 'unknown model'])) return 'is not available on this provider';
   return 'is having problems';

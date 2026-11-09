@@ -5,6 +5,8 @@
 // sideways (elastic 0.18; past 72px or 520px/s). Not ported: blur on enter/exit
 // and the surface's backdrop blur, other statuses/positions, renderToast. Toasts
 // render in the app window, so they sit under an open RN Modal.
+// Neru addition: an optional `variant` (success, warning, error) that picks the icon and plays the matching
+// haptic, so callers that pass one should not fire their own.
 import { haptic } from '@/haptics';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -20,7 +22,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { font, fs, useColors } from '@/theme';
 import { EASE_OUT } from '@/ui/motion';
 import { t as tx } from '@/i18n';
@@ -50,7 +52,9 @@ const toastOut: EntryExitAnimationFunction = () => {
 };
 const restack = LinearTransition.springify().stiffness(STACK_SPRING.stiffness).damping(STACK_SPRING.damping).mass(STACK_SPRING.mass);
 
-type ToastInput = { title: string; description?: string; action?: { label: string; onPress: () => void }; duration?: number };
+type Variant = 'success' | 'warning' | 'error';
+type ToastInput = { title: string; description?: string; action?: { label: string; onPress: () => void }; duration?: number; variant?: Variant };
+const VARIANT_ICON: Record<Variant, IconName> = { success: 'checkCircle', warning: 'warning', error: 'xCircle' };
 type Toast = ToastInput & { id: number };
 
 const ToastContext = createContext<((toast: ToastInput) => void) | null>(null);
@@ -68,6 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const dismiss = useCallback((id: number) => setToasts((all) => all.filter((t) => t.id !== id)), []);
   const show = useCallback((toast: ToastInput) => {
+    if (toast.variant) haptic[toast.variant]();
     setToasts((all) => [...all, { ...toast, id: seed++ }]);
     AccessibilityInfo.announceForAccessibility(toast.description ? `${toast.title}. ${toast.description}` : toast.title);
   }, []);
@@ -119,7 +124,7 @@ function ToastItem({ toast, index, onDismiss }: { toast: Toast; index: number; o
         >
           <View style={[s.row, { alignItems: hasDetails ? 'flex-start' : 'center' }]}>
             <View style={[s.iconWrap, hasDetails && s.nudge, { backgroundColor: `${c.surface3}99` }]}>
-              <Icon name="bell" size={14} color={c.muted} />
+              <Icon name={toast.variant ? VARIANT_ICON[toast.variant] : 'bell'} size={14} color={toast.variant === 'success' ? c.moss : toast.variant ? c.danger : c.muted} />
             </View>
             <View style={s.content}>
               <Text numberOfLines={1} style={[s.title, { color: c.text }]}>

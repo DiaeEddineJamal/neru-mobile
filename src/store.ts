@@ -14,6 +14,11 @@ import { formatForModel, privacyAllows, privacyLabels, privacyOf, providerPreset
 import { redact } from '@/shared/redact';
 import { setLanguage, t as tx, voiceLocale, type LanguageSetting } from '@/i18n';
 import { estimateTokens, recordUsage } from '@/usage';
+import { afterReply, memoryPrompt } from '@/memory';
+import { projectPrompt } from '@/projects';
+import { artifactPrompt } from '@/artifacts/prompt';
+import { visualPrompt } from '@/viz/prompt';
+import { liveFinish, livePush, liveStart } from '@/ui/stream/live';
 
 export type { Attachment, Chat, Message, ToolStep };
 
@@ -48,7 +53,28 @@ export type Settings = {
   language?: LanguageSetting;
   /** Let chats use connector tools (MCP). */
   connectors?: boolean;
+  // ---- 0.16 profile (Settings → Profile) ----
+  /** Full name, shown on the account card. `name` above is what Neru calls the user. */
+  fullName?: string;
+  /** Profile photo, a file:// URI in the app's document directory. */
+  avatarUri?: string;
+  /** Personal preferences that apply to every conversation, added to the system prompt. */
+  preferences?: string;
+  // ---- 0.16 memory and capabilities ----
+  /** Generate memory from chat history and use it in new chats (default on). */
+  memory?: boolean;
+  /** Let Neru search and reference past chats (default on). */
+  searchChats?: boolean;
+  /** Switch to another model when a provider's safety filter flags a message (default on). */
+  switchOnFlag?: boolean;
+  /** Let models draw interactive charts and diagrams in the conversation (default on). */
+  visuals?: boolean;
+  /** Let models create artifacts: documents, code and pages kept in Artifacts (default on). */
+  artifacts?: boolean;
 };
+
+/** Options for the chat the composer will start (from the + sheet or the incognito button), before it exists. */
+export type DraftChat = { projectId?: string; incognito?: boolean; /** Memory on for this chat; default from settings. */ memory?: boolean };
 
 type State = {
   chats: Chat[];
@@ -59,6 +85,8 @@ type State = {
   /** Last fallback switch, shown above the composer. */
   notice: { chatId: string; text: string } | null;
   modelSheet: boolean;
+  /** What the next new chat starts with. */
+  draftChat: DraftChat;
 };
 
 const defaults: Settings = { providerId: 'nvidia', model: '', baseUrls: {}, fallback: true, haptics: true, theme: 'system', voiceLang: 'en-US', onboarded: false, seenVersion: '', nudges: true, privacy: 'any', redact: true };
@@ -71,6 +99,7 @@ let state: State = {
   streamingChat: null,
   notice: null,
   modelSheet: false,
+  draftChat: {},
 };
 const listeners = new Set<() => void>();
 
@@ -144,6 +173,14 @@ export async function testKey(providerId: string, key: string, baseUrl?: string)
 }
 
 export const setModelSheet = (open: boolean) => set({ modelSheet: open });
+export const setDraftChat = (patch: Partial<DraftChat> | null) => set({ draftChat: patch ? { ...state.draftChat, ...patch } : {} });
+
+/** Moves a chat into a project (or out of one with undefined). */
+export function setChatProject(chatId: string, projectId: string | undefined) {
+  updateChat(chatId, c => ({ ...c, projectId }));
+  const chat = chatOf(chatId);
+  if (chat) saveChat(chat);
+}
 
 export function chooseModel(providerId: string, model: string) {
   updateSettings({ providerId, model });
@@ -164,8 +201,9 @@ export function send(chatId: string | null, text: string, attachments: Attachmen
   if (!id) {
     id = uid();
     const title = text ? (text.length > 40 ? text.slice(0, 40).trimEnd() + '…' : text) : (attachments[0]?.name ?? tx('New chat'));
-    const chat: Chat = { id, title, starred: false, updatedAt: Date.now(), messages: [] };
-    set({ chats: [chat, ...state.chats] });
+    const draft = state.draftChat;
+    const chat: Chat = { id, title, starred: false, updatedAt: Date.now(), messages: [], projectId: draft.projectId, incognito: draft.incognito || undefined };
+    set({ chats: [chat, ...state.chats], draftChat: {} });
     saveChat(chat);
   }
   const msg: Message = { id: uid(), role: 'user', text, attachments: attachments.length ? attachments : undefined, createdAt: Date.now() };
@@ -228,16 +266,35 @@ async function imagePart(a: Attachment, local = false) {
   }
 }
 
-/** Tells every model, cloud or on-device, who it is talking to. */
+/** Tells every model, cloud or on-device, who it is talking to, and the user's standing preferences. */
 export function profilePrompt(s: Settings = state.settings) {
   const name = s.name?.trim();
-  if (!name && !s.gender) return '';
+  const full = s.fullName?.trim();
+  const prefs = s.preferences?.trim();
   const who = s.gender === 'male' ? 'He is a man: use he/him, and masculine forms in languages with grammatical gender.' : s.gender === 'female' ? 'She is a woman: use she/her, and feminine forms in languages with grammatical gender.' : '';
-  return [name ? `The user's name is ${name}. Use it now and then, naturally, not in every reply.` : '', who].filter(Boolean).join(' ');
+  return [
+    name ? `The user's name is ${name}. Use it now and then, naturally, not in every reply.` : full ? `The user's name is ${full}.` : '',
+    full && name && full !== name ? `Their full name is ${full}.` : '',
+    who,
+    prefs ? `The user's personal preferences for every reply (follow them unless the current message asks otherwise):\n${prefs}` : '',
+  ].filter(Boolean).join(' ');
+}
+
+/** The whole system prompt for a chat: Neru's instructions, the user, memory, the project, and output formats. */
+export function systemPrompt(chat: Chat, local = false) {
+  const s = state.settings;
+  return [
+    SYSTEM,
+    profilePrompt(),
+    projectPrompt(chat),
+    memoryPrompt(chat, local),
+    s.artifacts === false ? '' : artifactPrompt(local),
+    s.visuals === false ? '' : visualPrompt(local),
+  ].filter(Boolean).join('\n\n');
 }
 
 async function history(chat: Chat, local = false): Promise<ChatMessage[]> {
-  const out: ChatMessage[] = [{ role: 'system', text: [SYSTEM, profilePrompt()].filter(Boolean).join('\n\n') }];
+  const out: ChatMessage[] = [{ role: 'system', text: systemPrompt(chat, local) }];
   for (const m of chat.messages) {
     if (m.role === 'assistant' && (m.error || !m.text)) continue;
     const images = (await Promise.all((m.attachments ?? []).filter(a => a.kind === 'image').map(a => imagePart(a, local)))).filter(x => x !== null);
@@ -266,20 +323,28 @@ async function streamReply(chatId: string) {
   updateChat(chatId, c => ({ ...c, updatedAt: Date.now(), messages: [...c.messages, reply] }));
   set({ streamingChat: chatId, notice: state.notice?.chatId === chatId ? null : state.notice });
 
-  // Deltas arrive in tiny pieces; render them in ~30 fps batches instead of one update each.
+  // Text deltas go to the live channel (ui/stream/live), which only the streaming row reads and which paces the text
+  // frame by frame. The store, whose every change wakes every subscriber (drawer, chat list, notifications...), is
+  // written only when a tool step changes and when the reply ends.
   let text = '';
   let reasoning = '';
   let steps: ToolStep[] = [];
+  let flushed = steps;
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   const flush = () => {
+    if (flushTimer) clearTimeout(flushTimer);
     flushTimer = null;
+    flushed = steps;
     updateChat(chatId, c => ({ ...c, messages: c.messages.map(m => (m.id === reply.id ? { ...m, text, reasoning: reasoning.trim() ? reasoning : undefined, tools: steps.length ? steps : undefined } : m)) }));
   };
-  // An on-device reply shares the processor with the screen: about 7 redraws a second leave most of it to the model.
-  const schedule = () => (flushTimer ??= setTimeout(flush, providerId === 'on-device' ? 150 : 33));
+  const schedule = () => {
+    livePush(reply.id, text, reasoning);
+    if (steps !== flushed) flushTimer ??= setTimeout(flush, 50);
+  };
 
   const chat = chatOf(chatId)!;
   let { providerId, model } = state.settings;
+  liveStart(reply.id, providerId === 'on-device');
   const messages = await history({ ...chat, messages: chat.messages.filter(m => m.id !== reply.id) }, providerId === 'on-device');
   let error: string | undefined;
   const rule = state.settings.privacy;
@@ -428,7 +493,7 @@ async function streamReply(chatId: string) {
       if (controller.signal.aborted) break;
       error = err instanceof Error ? err.message : String(err);
       // Switch only before any text arrived or any tool ran, so a reply is never stitched from two models.
-      if (local || text || toolsRan || !state.settings.fallback || !shouldSwitch(error)) break;
+      if (local || text || toolsRan || !state.settings.fallback || !shouldSwitch(error, state.settings.switchOnFlag !== false)) break;
       const keys = await Promise.all(state.keyed.filter(p => (presetOf(p)?.freeLimit || p === providerId) && !privacyBlock(p, rule)).map(p => configFor(p, '')));
       const next = await nextModel(config, error, keys);
       if (!next) break;
@@ -438,7 +503,9 @@ async function streamReply(chatId: string) {
     }
   }
 
-  if (flushTimer) clearTimeout(flushTimer);
+  // The text goes into the store before `streamingChat` clears, so whoever watches for the end reads the whole reply.
+  flush();
+  liveFinish(reply.id);
   if (abort === controller) {
     abort = null;
     set({ streamingChat: null });
@@ -454,6 +521,7 @@ async function streamReply(chatId: string) {
   const answered = done.messages.filter(m => m.role === 'assistant' && m.text && !m.error).length;
   const question = done.messages.find(m => m.role === 'user')?.text ?? '';
   if (text && answered === 1) void autoTitle(chatId, providerId, model, question, text);
+  if (text) afterReply(done);
 }
 
 /** Names a new chat from its first exchange with the model that answered, on-device ones included, like

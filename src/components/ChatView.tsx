@@ -4,31 +4,26 @@ import { askForNotifications } from '@/notify';
 import { router, useFocusEffect } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
-import { cameraChat, pickFiles, pickPhotos, recoverPhoto, takePhoto } from '@/attach';
+import { cameraChat, recoverPhoto } from '@/attach';
 import { mergeAttachments, useComposerDraft } from '@/drafts';
 import { greeting } from '@/greetings';
 import { t as tx } from '@/i18n';
 import { ChatScreen, VoiceComposer } from '@/components/ChatShell';
-import { Icon, IconButton, type IconName } from '@/components/Icon';
-import { editMessage, NO_MODEL, retry, send, setModelSheet, stop, useStore, type Attachment, type Message } from '@/store';
+import { MessageRow } from '@/components/MessageRow';
+import { Icon, IconButton } from '@/components/Icon';
+import { PlusSheet } from '@/components/PlusSheet';
+import { expandMessage, visibleText, type Skill } from '@/skills';
+import { editMessage, modelLabel, send, setModelSheet, stop, useStore, type Attachment, type Message } from '@/store';
 import { font, fs, TAP, useColors } from '@/theme';
-import { BottomSheet } from '@/ui/bottom-sheet';
 import { ActionButton } from '@/ui/button-base';
-import { ContextMenu } from '@/ui/context-menu';
 import { ImageViewer } from '@/ui/image-viewer';
-import { AssistantMessage } from '@/ui/message';
-import { MessageAttachments } from '@/ui/message-attachments';
-import { MessageBubble } from '@/ui/message-bubble';
-import { ReasoningText } from '@/ui/reasoning-text';
 import { TextReveal } from '@/ui/text-reveal';
-import { ThinkingShimmer } from '@/ui/thinking-shimmer';
 import { useToast } from '@/ui/toast';
 import { ToolApproval } from '@/ui/tool-approval';
-import { MascotImage } from '@/ui/mascot';
-import { ToolResult } from '@/ui/tool-result';
+import { Mascot } from '@/ui/mascot';
 import { answerToolAsk, useToolAsk } from '@/llm/tools';
 import { preloadLocal } from '@/local/runtime';
 
@@ -45,6 +40,8 @@ const speakable = (md: string) =>
 // them; the allowance covers a chat started on the home screen, which mounts just after its first message.
 const FRESH_MS = 1000;
 
+const researchOn = new Map<string, boolean>();
+
 export function ChatView({ chatId }: { chatId: string | null }) {
   const c = useColors();
   const toast = useToast();
@@ -58,6 +55,14 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   }, [streaming]);
   const notice = useStore(st => (st.notice && st.notice.chatId === chatId ? st.notice.text : null));
   const hasModel = useStore(st => !!st.settings.model);
+  const model = useStore(st => (st.settings.model ? modelLabel(st.settings) : ''));
+  // Research mode for this chat's next messages: the + sheet's switch. Kept per chat for the app's lifetime, and
+  // carried from the new-chat screen into the chat its first message creates.
+  const [research, setResearchState] = useState(() => researchOn.get(chatId ?? 'new') ?? false);
+  const setResearch = (on: boolean) => {
+    researchOn.set(chatId ?? 'new', on);
+    setResearchState(on);
+  };
   // An on-device model starts loading as the chat opens, while the question is still being typed.
   const localModelId = useStore(st => (st.settings.providerId === 'on-device' ? st.settings.model : ''));
   useEffect(() => {
@@ -74,10 +79,10 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   const [openedAt] = useState(Date.now);
   const name = useStore(st => st.settings.name);
   // A new line every time the new-chat screen comes back into view (it stays mounted in the drawer).
-  const [hello, setHello] = useState(() => greeting(name));
+  const [hello, setHello] = useState(() => greeting(name, undefined, tx));
   const shown = useRef(false);
   useFocusEffect(useCallback(() => {
-    if (shown.current) setHello(greeting(name));
+    if (shown.current) setHello(greeting(name, undefined, tx));
     shown.current = true;
   }, [name]));
 
@@ -85,7 +90,7 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   const reversed = [...messages].reverse(); // inverted list: newest first, pinned to the bottom
 
   const copy = (value: string) => {
-    Clipboard.setStringAsync(value);
+    Clipboard.setStringAsync(visibleText(value));
     haptic.light();
     toast.show({ title: tx('Copied') });
   };
@@ -98,12 +103,17 @@ export function ChatView({ chatId }: { chatId: string | null }) {
   };
 
   const onSend = (value: string) => {
-    const body = value.trim();
+    // A leading "/skill" brings its instructions along, and research mode its own; the bubble shows only what was typed.
+    const body = expandMessage(value.trim(), { research });
     if (editing && chatId) {
       editMessage(chatId, editing.id, body);
       setEditing(null);
     } else {
       const id = send(chatId, body, pending);
+      if (!chatId && research) {
+        researchOn.set(id, true);
+        setResearch(false);
+      }
       // Like Claude's app: ask about notifications once there is a reply worth hearing about.
       void askForNotifications();
       if (!chatId) router.navigate(`/chat/${id}`);
@@ -115,8 +125,11 @@ export function ChatView({ chatId }: { chatId: string | null }) {
 
   const startEdit = (m: Message) => {
     setEditing(m);
-    setText(m.text);
+    setText(visibleText(m.text));
   };
+
+  // A skill from the + sheet: "/slug " leads the message, replacing any other skill already there.
+  const pickSkill = (skill: Skill) => setText(`/${skill.slug} ${text.replace(/^\s*\/[a-z0-9-]+\s*/i, '')}`);
 
   // Launch external activities only after the modal has completely left the screen.
   const attach = (pick: () => Promise<Attachment[]>) => {
@@ -150,69 +163,28 @@ export function ChatView({ chatId }: { chatId: string | null }) {
     setViewer({ images, index: Math.max(0, images.findIndex(a => a.id === id)) });
   };
 
-  const render = ({ item, index }: { item: Message; index: number }) => {
-    const isLast = index === 0;
-    if (item.role === 'user')
-      return (
-        <View style={{ gap: 6 }}>
-          {item.attachments?.length ? <MessageAttachments items={item.attachments} onOpenImage={id => openImage(item.attachments!, id)} /> : null}
-          {item.text ? (
-            <ContextMenu
-              items={[
-                { label: tx('Copy'), icon: 'copy', onPress: () => copy(item.text) },
-                { label: tx('Edit'), icon: 'compose', onPress: () => startEdit(item) },
-                { label: tx('Share'), icon: 'share', onPress: () => Share.share({ message: item.text }) },
-              ]}
-            >
-              <MessageBubble text={item.text} animateIn={item.createdAt > openedAt - FRESH_MS} />
-            </ContextMenu>
-          ) : null}
-        </View>
-      );
-    const live = isLast && streaming;
-    return (
-      <Animated.View entering={item.createdAt > openedAt - FRESH_MS ? FadeIn.duration(220).delay(120) : undefined} style={{ paddingHorizontal: 20, gap: 8 }}>
-        {/* While a reply streams, the orb footer below says what the model is doing, as on the desktop. */}
-        {item.reasoning?.trim() ? <ReasoningText text={item.reasoning.trim()} streaming={false} /> : null}
-        {(item.tools ?? []).map((t, i) => (
-          <ToolResult key={i} tool={t.label} detail={t.detail} summary={t.status === 'denied' ? tx('{name} · declined', { name: t.name }) : t.name} status={t.status === 'running' ? 'running' : t.status === 'done' ? 'done' : 'failed'} />
-        ))}
-        {item.error ? (
-          <View style={[s.error, { backgroundColor: c.surface2, borderColor: c.border }]} accessibilityLiveRegion="polite">
-            <Text style={{ fontFamily: font.sans, fontSize: fs.sm, color: c.danger, lineHeight: 20 }}>{item.error === NO_MODEL ? tx(NO_MODEL) : item.error}</Text>
-            {isLast && chatId ? (
-              item.error === NO_MODEL ? (
-                <ActionButton title={tx('Choose a model')} variant="secondary" icon="sparkles" onPress={() => setModelSheet(true)} />
-              ) : (
-                <ActionButton title={tx('Try again')} variant="secondary" icon="retry" onPress={() => retry(chatId)} />
-              )
-            ) : null}
-          </View>
-        ) : item.text ? (
-          <ContextMenu
-            disabled={live}
-            items={[
-              { label: tx('Copy'), icon: 'copy', onPress: () => copy(item.text) },
-              { label: speaking === item.id ? tx('Stop reading') : tx('Read aloud'), icon: 'speaker', onPress: () => speak(item) },
-              { label: tx('Share'), icon: 'share', onPress: () => Share.share({ message: item.text }) },
-              ...(isLast && chatId ? [{ label: tx('Retry'), icon: 'retry' as IconName, onPress: () => retry(chatId) }] : []),
-            ]}
-          >
-            <AssistantMessage text={item.text} streaming={live} onCopy={() => copy(item.text)} onRetry={isLast && chatId ? () => retry(chatId) : undefined} />
-          </ContextMenu>
-        ) : null}
-        {live && !item.error ? <ThinkingShimmer {...(item.text ? { state: 'composing', label: tx('Composing') } : item.reasoning?.trim() ? { state: 'solving', label: tx('Reasoning') } : { state: 'working', label: tx('Thinking') })} /> : null}
-        {!live && item.model && isLast ? <Text style={[s.model, { color: c.muted }]}>{item.model}</Text> : null}
-      </Animated.View>
-    );
-  };
+  // Stable callbacks so MessageRow's memo holds: only the streaming row re-renders per token. The React Compiler
+  // memoizes these on what they read (toast, speaking, setText), as the old useCallback wrappers did.
+  const onCopy = copy;
+  const onSpeak = speak;
+  const onEdit = startEdit;
+  const onOpenImage = openImage;
+  const render = ({ item, index }: { item: Message; index: number }) => (
+    <MessageRow
+      item={item}
+      chatId={chatId}
+      isLast={index === 0}
+      live={index === 0 && streaming}
+      fresh={item.createdAt > openedAt - FRESH_MS}
+      speaking={speaking === item.id}
+      onCopy={onCopy}
+      onSpeak={onSpeak}
+      onEdit={onEdit}
+      onOpenImage={onOpenImage}
+    />
+  );
 
   const ask = useToolAsk();
-  const options: [IconName, string, () => Promise<Attachment[]>][] = [
-    ['camera', tx('Camera'), () => takePhoto(chatId)],
-    ['photo', tx('Photos'), () => pickPhotos(chatId)],
-    ['file', tx('Files'), pickFiles],
-  ];
 
   return (
     <ChatScreen>
@@ -238,12 +210,10 @@ export function ChatView({ chatId }: { chatId: string | null }) {
         </View>
       ) : (
         <View style={s.empty}>
-          <MascotImage style={{ width: 72, height: 72 }} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Mascot size={84} interactive />
           <TextReveal key={hello} text={hello} style={[s.hello, { color: c.text }]} />
-          {hasModel ? (
-            <Text style={{ fontFamily: font.sans, fontSize: fs.base, color: c.muted }}>{tx('How can I help?')}</Text>
-          ) : (
-            <ActionButton title={tx('Choose a model')} variant="secondary" onPress={() => setModelSheet(true)} />
+          {hasModel ? null : (
+            <ActionButton title={tx('Choose a model')} variant="secondary" onPress={() => setModelSheet(true)} style={{ marginTop: 8 }} />
           )}
         </View>
       )}
@@ -277,25 +247,27 @@ export function ChatView({ chatId }: { chatId: string | null }) {
         onSend={onSend}
         onStop={stop}
         streaming={streaming}
-        placeholder={editing ? tx('Edit your message') : tx('Message Neru')}
+        placeholder={editing ? tx('Edit your message') : tx('Chat with Neru…')}
         onAttach={() => setAttachOpen(true)}
+        minimizable={!messages.length && !editing}
+        modelLabel={model || undefined}
+        onModel={() => setModelSheet(true)}
         attachments={pending}
         onRemoveAttachment={id => setPending(p => p.filter(a => a.id !== id))}
         onOpenImage={id => openImage(pending, id)}
         tour={chatId === null}
       />
 
-      <BottomSheet open={attachOpen} onClose={() => setAttachOpen(false)} onDismiss={finishAttach} title={tx('Add to chat')}>
-        <View style={{ flexDirection: 'row', gap: 12, paddingBottom: 8 }}>
-          {options.map(([icon, label, pick]) => (
-            <Pressable key={label} onPress={() => attach(pick)} accessibilityRole="button" style={[s.tile, { backgroundColor: c.surface3 }]}>
-              <Icon name={icon} size={26} color={c.text} />
-              <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.text }}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <ActionButton title={tx('Connectors: Gmail, GitHub, Jira…')} variant="secondary" icon="link" onPress={() => (setAttachOpen(false), router.push('/connectors'))} style={{ marginBottom: 8 }} />
-      </BottomSheet>
+      <PlusSheet
+        open={attachOpen}
+        onClose={() => setAttachOpen(false)}
+        onDismiss={finishAttach}
+        chatId={chatId}
+        onAttach={attach}
+        onSkill={pickSkill}
+        research={research}
+        onResearch={setResearch}
+      />
 
       <ImageViewer images={viewer?.images.map(a => ({ uri: a.uri, name: a.name })) ?? []} index={viewer?.index ?? null} onClose={() => setViewer(null)} />
     </ChatScreen>
@@ -304,12 +276,12 @@ export function ChatView({ chatId }: { chatId: string | null }) {
 
 const s = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24 },
-  hello: { fontFamily: font.serif, fontSize: fs.display, textAlign: 'center' },
+  // Claude's "Let's noodle": big serif, centered under the mascot.
+  hello: { fontFamily: font.serif, fontSize: 36, lineHeight: 44, letterSpacing: -0.5, textAlign: 'center', marginTop: 6 },
   error: { gap: 12, padding: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth },
   notice: { fontFamily: font.sans, fontSize: fs.xs, textAlign: 'center', paddingHorizontal: 24, paddingBottom: 4 },
   model: { fontFamily: font.mono, fontSize: fs.xs },
   editing: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, paddingHorizontal: 14, minHeight: 40, borderRadius: 12 },
   jumpWrap: { position: 'absolute', alignSelf: 'center', bottom: 12 },
   jump: { borderRadius: TAP / 2, borderWidth: StyleSheet.hairlineWidth },
-  tile: { flex: 1, minHeight: TAP * 2, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 8 },
 });

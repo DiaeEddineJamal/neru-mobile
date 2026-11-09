@@ -1,5 +1,6 @@
-// Port of beui.dev/components/motion/input
-// Pill field whose border and 2px ring fade over 200ms on focus and error, an
+// Port of beui.dev/components/motion/input, styled like Claude's app: an 18px rounded field on c.surface2 with an
+// outline that turns the accent colour (plus a soft accent ring) on focus.
+// Its border and 2px ring fade over 200ms on focus and error, an
 // error shake (x 0,-6,6,-4,4,-2,0 over 0.45s) each time an error appears, and an
 // error line that fades in from 4px above. Not ported: the message's blur, the
 // success check and left/right icon slots (not needed here). The field is 48 tall
@@ -65,8 +66,8 @@ export function TextField({ label, error, editable = true, onFocus, onBlur, auto
     shake.set(withSequence(...SHAKE.map((x) => withTiming(x, { duration: 75 }))));
   }, [hasError, reduce, shake]);
 
-  const border = hasError ? c.danger : focused ? `${c.text}66` : c.border;
-  const ring = hasError ? `${c.danger}40` : `${c.muted}66`;
+  const border = hasError ? c.danger : focused ? c.mossAction : c.border;
+  const ring = hasError ? `${c.danger}40` : `${c.mossAction}40`;
   const ringOn = hasError || focused;
 
   const fieldStyle = useAnimatedStyle(() => ({
@@ -80,8 +81,8 @@ export function TextField({ label, error, editable = true, onFocus, onBlur, auto
 
   return (
     <View style={s.root}>
-      <Text style={[s.label, { color: c.text }]}>{label}</Text>
-      <Animated.View style={[s.field, !editable && s.disabled, fieldStyle]}>
+      <Text style={[s.label, { color: c.secondary }]}>{label}</Text>
+      <Animated.View style={[s.field, { backgroundColor: c.surface2 }, !editable && s.disabled, fieldStyle]}>
         <Animated.View style={[s.ring, ringStyle]} />
         <TextInput
           {...rest}
@@ -121,11 +122,11 @@ export function TextField({ label, error, editable = true, onFocus, onBlur, auto
 
 const s = StyleSheet.create({
   root: { gap: 6 },
-  label: { paddingHorizontal: 4, fontFamily: font.medium, fontSize: fs.sm },
-  field: { height: TAP, borderRadius: 9999, borderWidth: 1, justifyContent: 'center' },
+  label: { paddingHorizontal: 4, fontFamily: font.semibold, fontSize: fs.sm },
+  field: { height: TAP + 8, borderRadius: 18, borderWidth: 1, justifyContent: 'center' },
   // ring-2 sits just outside the 1px border.
-  ring: { position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: 9999, borderWidth: 2 },
+  ring: { position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: 21, borderWidth: 2 },
   disabled: { opacity: 0.6 },
-  input: { height: '100%', paddingHorizontal: 14, fontFamily: font.sans, fontSize: fs.base },
+  input: { height: '100%', paddingHorizontal: 16, fontFamily: font.sans, fontSize: fs.base },
   error: { paddingHorizontal: 4, fontFamily: font.sans, fontSize: fs.xs },
 });

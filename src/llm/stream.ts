@@ -2,6 +2,7 @@
 // for connectors (MCP): a reply may ask for tools, and the next request carries their results.
 import { fetch } from 'expo/fetch';
 
+import { flaggedError, flagReason } from '@/llm/flagged';
 import { CallCollector, cleanSchema, geminiSchema, parseEvent, type StreamHandlers, type ToolCall } from '@/llm/parse';
 import type { ApiFormat } from '@/shared/providerCatalog';
 
@@ -156,6 +157,10 @@ export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: 
   }
 
   const calls = new CallCollector();
+  // A safety-filter stop with nothing said becomes a "flagged" error, so the store can switch models.
+  let said = false;
+  let flagged: string | null = null;
+  const handlers: StreamHandlers = { ...h, onDelta: text => ((said ||= !!text.trim()), h.onDelta(text)) };
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -172,10 +177,15 @@ export async function streamChat(c: ProviderConfig, messages: ChatMessage[], h: 
     while ((nl = buffer.indexOf('\n')) >= 0) {
       const line = buffer.slice(0, nl).trim();
       buffer = buffer.slice(nl + 1);
-      if (line.startsWith('data:')) parseEvent(c.format, line.slice(5).trim(), h, calls);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      parseEvent(c.format, data, handlers, calls);
+      flagged ??= flagReason(c.format, data);
     }
   }
-  return calls.done();
+  const asked = calls.done();
+  if (flagged && !said && !asked.length) throw flaggedError(flagged);
+  return asked;
 }
 
 /** The chat models a key can call, same filter as the desktop's models.rs `is_chat_id`. */

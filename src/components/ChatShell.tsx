@@ -22,6 +22,11 @@ type ComposerProps = {
   onRemoveAttachment?: (id: string) => void;
   onOpenImage?: (id: string) => void;
   tour?: boolean;
+  /** An empty chat: the composer starts as one field and a mic, and opens on focus. */
+  minimizable?: boolean;
+  /** The current model as a pill that opens the model sheet. */
+  modelLabel?: string;
+  onModel?: () => void;
 };
 
 /**

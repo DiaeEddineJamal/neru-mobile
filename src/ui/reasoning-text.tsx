@@ -2,7 +2,7 @@
 // reveal for the reasoning body. beUI's component is only the cycling status line; the collapsible body and the
 // settled "Reasoning" label are composed from beUI's disclosure + SPRING_SWAP chevron (streaming-response's sources toggle).
 // The disclosure's clip-path reveal is an animated height here.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { type EntryExitAnimationFunction, LayoutAnimationConfig, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 
@@ -61,6 +61,17 @@ export function ReasoningText({ text, streaming }: { text: string; streaming: bo
   const c = useColors();
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
+  // The body text lays out only while it can be seen (open, or fading out). Reasoning streams in many times a
+  // second, and re-measuring a long hidden paragraph on every update cost the UI thread for nothing.
+  const [bodyOn, setBodyOn] = useState(false);
+  const hide = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(hide.current), []);
+  const toggle = () => {
+    clearTimeout(hide.current);
+    if (open) hide.current = setTimeout(() => setBodyOn(false), 200);
+    else setBodyOn(true);
+    setOpen(!open);
+  };
   const [index, setIndex] = useState(0);
   const phrase = t(PHRASES[index]);
   const longest = PHRASES.map(p => t(p)).reduce((a, b) => (b.length > a.length ? b : a));
@@ -88,7 +99,7 @@ export function ReasoningText({ text, streaming }: { text: string; streaming: bo
   return (
     <View>
       <Pressable
-        onPress={() => setOpen(o => !o)}
+        onPress={toggle}
         hitSlop={14}
         accessibilityRole="button"
         accessibilityLabel={streaming ? phrase : t('Reasoning')}
@@ -116,7 +127,7 @@ export function ReasoningText({ text, streaming }: { text: string; streaming: bo
 
       <Animated.View aria-hidden={!open} style={[{ overflow: 'hidden', pointerEvents: open ? 'auto' : 'none' }, body]}>
         <View onLayout={e => height.set(e.nativeEvent.layout.height)} style={{ position: 'absolute', left: 0, right: 0, top: 0, paddingTop: 8 }}>
-          <Text selectable style={{ fontFamily: font.sans, fontSize: fs.sm, lineHeight: LINE, color: c.secondary }}>{text}</Text>
+          <Text selectable style={{ fontFamily: font.sans, fontSize: fs.sm, lineHeight: LINE, color: c.secondary }}>{open || bodyOn ? text : ''}</Text>
         </View>
       </Animated.View>
     </View>

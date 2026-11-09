@@ -2,6 +2,7 @@ package dev.neru.appicon
 
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -31,6 +32,22 @@ class NeruAppIconModule : Module() {
       pm.setComponentEnabledSetting(alias(target), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
       for (name in themes) if (name != target && enabled(name))
         pm.setComponentEnabledSetting(alias(name), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+      true
+    }
+    /**
+     * Shows `theme`'s mascot on the next cold start's system splash (Android 12+). An activity-alias cannot carry a
+     * starting-window theme, so this overrides it with `Theme.App.SplashScreen.<Theme>` (plugins/with-theme-icons.js);
+     * the system persists the style by name. Moss, or a theme without a style, resets to the manifest's splash.
+     */
+    Function("setSplash") { theme: String ->
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@Function true // no system splash to theme
+      val activity = appContext.currentActivity ?: return@Function false
+      val res = activity.resources
+      val style = "Theme.App.SplashScreen.${theme.replaceFirstChar { it.uppercase() }}"
+      val id = if (theme == "moss") 0 // Resources.ID_NULL: back to the manifest's splash
+        else res.getIdentifier(style, "style", activity.packageName).takeIf { it != 0 }
+          ?: res.getIdentifier(style.replace('.', '_'), "style", activity.packageName)
+      activity.splashScreen.setSplashScreenTheme(id)
       true
     }
   }

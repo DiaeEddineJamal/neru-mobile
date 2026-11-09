@@ -1,5 +1,58 @@
 [
   {
+    "version": "0.16.0",
+    "date": "2026-11-09",
+    "title": "A fresh look",
+    "summary": "A full-screen sidebar, calmer dark mode, smoother replies from phone models, and new places for your memory, projects, artifacts and skills.",
+    "items": [
+      {
+        "icon": "sparkles",
+        "title": "Smoother replies",
+        "text": "Phone models now stream text at a steady pace instead of in jumps. Only the new part of a reply is redrawn, the rest of the app stays still while it writes, and code blocks highlight just the lines that changed."
+      },
+      {
+        "icon": "menu",
+        "title": "A new sidebar",
+        "text": "The sidebar fills the screen, with Projects, Artifacts, pinned chats and recents, your photo and a New session button. Pages open over it without anything sliding underneath, and your paired desktop lives in one tidy Desktop panel."
+      },
+      {
+        "icon": "brain",
+        "title": "Memory and projects",
+        "text": "Neru can remember useful things from your chats, which you can read, edit or reset in Settings → Memory, and look up past chats when it helps. Projects keep chats, instructions and their own memory together. Memory never uses incognito chats."
+      },
+      {
+        "icon": "doc",
+        "title": "Artifacts, charts and diagrams",
+        "text": "Documents, code files, web pages and SVG drawings land in Artifacts, where you can open, copy and share them. Models can also draw interactive charts and diagrams right in the conversation."
+      },
+      {
+        "icon": "plus",
+        "title": "A new composer",
+        "text": "The message box stays compact until you tap it. Its + sheet adds photos and files, a project, skills like /draft-email or /plan-a-trip, Research and a Memory switch."
+      },
+      {
+        "icon": "person",
+        "title": "Profile and settings",
+        "text": "Add a photo, your name and personal preferences that apply to every chat. Settings is regrouped, with new Usage and Notifications pages, and Neru can switch models when a provider flags a message."
+      },
+      {
+        "icon": "wrench",
+        "title": "Connectors and keys",
+        "text": "Connectors show their tool counts and have a Browse view with search and categories. Providers and keys shows each provider's logo and status, with a simpler sheet to paste and test a key."
+      },
+      {
+        "icon": "palette",
+        "title": "Look and feel",
+        "text": "A neutral near-black dark mode with your theme as the accent, new fonts and outline icons, a splash screen in your theme's colors, a mascot that blinks and hops, and haptics that you can actually feel on Android."
+      },
+      {
+        "icon": "language",
+        "title": "Español",
+        "text": "Neru now speaks Spanish, and French is complete. Arabic and Darija have been removed."
+      }
+    ]
+  },
+  {
     "version": "0.15.1",
     "date": "2026-10-27",
     "title": "Smoother tools",

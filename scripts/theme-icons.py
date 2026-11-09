@@ -2,7 +2,8 @@
 
 Recolors only the mascot's green body (hue 70-170 degrees), keeping its paper texture, eyes and shadow, toward the
 middle of the theme's dark-mode moss and sage (src/theme.ts). Moss is the original artwork. Writes, per theme:
-assets/images/themes/<id>/android-icon-foreground.png (the launcher icon) and mascot.png (in the app).
+assets/images/themes/<id>/android-icon-foreground.png (the launcher icon) and mascot.png (in the app, and the
+Android 12+ splash logo: plugins/with-theme-icons.js sizes it like expo-splash-screen sizes neru-mascot.png).
 """
 import colorsys
 import os

@@ -238,31 +238,38 @@ class NeruLocalAiModule : Module() {
             try {
               if (!cancelled.get()) {
                 sendEvent("status", mapOf("requestId" to requestId, "phase" to "generating"))
-                // Tokens go to the app in batches about 25 times a second, not one bridge message each.
+                // Tokens go to the app in batches on a fixed ~30 Hz clock, not one bridge message each. The clock runs
+                // apart from the model, so a token never waits for the next one to be sent (checking the time only
+                // when a token arrived held a token back for a whole token interval, ~50-100 ms on a phone, and
+                // delivered text in uneven bursts). The app paces what it shows per frame on top of this.
                 val text = StringBuilder()
                 val thought = StringBuilder()
-                var sentAt = 0L
-                fun flush() {
-                  if (text.isEmpty() && thought.isEmpty()) return
+                val pending = Any()
+                fun flush() = synchronized(pending) {
+                  // Sent inside the lock so batches can never overtake each other.
+                  if (text.isEmpty() && thought.isEmpty()) return@synchronized
                   sendEvent("token", mapOf("requestId" to requestId, "text" to text.toString(), "reasoning" to thought.toString()))
-                  text.setLength(0); thought.setLength(0); sentAt = System.nanoTime()
+                  text.setLength(0); thought.setLength(0)
                 }
-                // Some converted chat templates default back to thinking on each send. Carry the explicit switch
-                // on every turn, both through LiteRT's thinking control and the template's enable_thinking value.
-                chat.sendMessageAsync(contents(question, promptBudget),
-                  extraContext = mapOf("enable_thinking" to (settings["thinking"] == true)),
-                  thinkingConfig = ThinkingConfig(enableThinking = settings["thinking"] == true)).collect { message ->
-                  if (cancelled.get()) { chat.cancelProcess(); return@collect }
-                  // Gemma may return structured native calls instead of text. Send those to Neru's MCP executor
-                  // and approval flow; Message.toString() alone silently discards them.
-                  if (message.toolCalls.isNotEmpty()) structuredToolCall = true
-                  val piece = message.toString() + message.toolCalls.joinToString("") { call ->
-                    "<tool_call>" + org.json.JSONObject(mapOf("name" to call.name, "arguments" to call.arguments)).toString() + "</tool_call>"
+                val ticker = scope.launch { while (isActive) { delay(TOKEN_BATCH_MS); flush() } }
+                try {
+                  // Some converted chat templates default back to thinking on each send. Carry the explicit switch
+                  // on every turn, both through LiteRT's thinking control and the template's enable_thinking value.
+                  chat.sendMessageAsync(contents(question, promptBudget),
+                    extraContext = mapOf("enable_thinking" to (settings["thinking"] == true)),
+                    thinkingConfig = ThinkingConfig(enableThinking = settings["thinking"] == true)).collect { message ->
+                    if (cancelled.get()) { chat.cancelProcess(); return@collect }
+                    // Gemma may return structured native calls instead of text. Send those to Neru's MCP executor
+                    // and approval flow; Message.toString() alone silently discards them.
+                    if (message.toolCalls.isNotEmpty()) structuredToolCall = true
+                    val piece = message.toString() + message.toolCalls.joinToString("") { call ->
+                      "<tool_call>" + org.json.JSONObject(mapOf("name" to call.name, "arguments" to call.arguments)).toString() + "</tool_call>"
+                    }
+                    reply.append(piece)
+                    val reasoning = message.channels["analysis"] ?: message.channels["thought"] ?: ""
+                    synchronized(pending) { text.append(piece); thought.append(reasoning) }
                   }
-                  reply.append(piece); text.append(piece)
-                  thought.append(message.channels["analysis"] ?: message.channels["thought"] ?: "")
-                  if (System.nanoTime() - sentAt > 40_000_000L) flush()
-                }
+                } finally { ticker.cancel() }
                 flush()
                 ok = !cancelled.get()
               }
@@ -346,6 +353,7 @@ class NeruLocalAiModule : Module() {
 
   private companion object {
     const val MAX_EDGE = 1024
+    const val TOKEN_BATCH_MS = 32L
     val THINK = Regex("<think>[\\s\\S]*?(</think>|$)")
     fun clipPrompt(text: String, maxChars: Int): String {
       if (text.length <= maxChars) return text

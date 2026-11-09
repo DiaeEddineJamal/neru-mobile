@@ -1,11 +1,13 @@
 {
   "name": "neru-mobile",
   "main": "expo-router/entry",
-  "version": "0.15.1",
+  "version": "0.16.0",
   "dependencies": {
+    "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo-google-fonts/instrument-serif": "^0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
+    "@expo-google-fonts/source-serif-4": "^0.4.2",
     "@expo/ui": "~57.0.21",
     "@noble/ciphers": "^2.4.0",
     "expo": "~57.0.26",
@@ -39,6 +41,7 @@
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
     "expo-web-browser": "~57.0.3",
+    "lucide-react-native": "^1.70.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -49,6 +52,7 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.10.1",
     "thinking-orbs": "^0.3.2"
   },
@@ -65,6 +69,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "check:attachments": "node scripts/check-attachments.cjs",
+    "check:i18n": "node scripts/i18n-extract.cjs",
     "check:models": "node scripts/check-local-models.cjs",
     "phone": "adb reverse tcp:8081 tcp:8081 && expo start"
   },

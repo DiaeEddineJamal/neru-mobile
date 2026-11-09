@@ -1,10 +1,8 @@
 // Port of beui.dev/components/motion/context-menu
 // Long press (520ms, 10px tolerance) opens the menu at the press point, clamped 8px
-// inside the screen, and it unfolds with beUI's clip morph: a 16px rounded square
-// at the press point grows to the full menu (radius 10 to 12) with opacity, 0.3s
-// EASE_OUT, and folds back the same way on close. Clip-path is emulated with an
-// overflow-hidden frame and a counter-translated menu.
-// Additions for touch: a haptic on open and the trigger lifting to 1.03 on
+// inside the screen. Styled like Claude's app: a 22px rounded card on c.surface2 with outline icons, fading in and
+// scaling up from the press point (0.3s EASE_OUT), folding back the same way on close.
+// Additions for touch: a long-press haptic on open, a light one on each item, and the trigger lifting to 1.03 on
 // SPRING_PANEL while the menu is up (beUI leaves the trigger alone). Not ported:
 // right-click and keyboard opening, arrow-key/typeahead focus and the gliding
 // hover highlight (rows show a pressed fill instead), checkbox/radio/label/
@@ -44,7 +42,7 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
   const lift = useSharedValue(1);
 
   const openAt = (p: Point) => {
-    haptic.medium();
+    haptic.long();
     setSize(null);
     setPoint(p);
     setOpen(true);
@@ -77,18 +75,14 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
   const h = size?.h ?? 0;
   const left = point ? Math.max(VIEWPORT_PADDING, Math.min(Math.max(point.x, VIEWPORT_PADDING), win.width - w - VIEWPORT_PADDING)) : 0;
   const top = point ? Math.max(VIEWPORT_PADDING, Math.min(Math.max(point.y, VIEWPORT_PADDING), win.height - h - VIEWPORT_PADDING)) : 0;
-  // Top-left of the collapsed 16px square, centred on the press point.
-  const ox = point ? clamp(point.x - left, 12, Math.max(12, w - 12)) - 8 : 0;
-  const oy = point ? clamp(point.y - top, 12, Math.max(12, h - 12)) - 8 : 0;
+  // The press point inside the menu: the menu grows out of it.
+  const ox = point ? clamp(point.x - left, 0, w) : 0;
+  const oy = point ? clamp(point.y - top, 0, h) : 0;
 
   const liftStyle = useAnimatedStyle(() => ({ transform: [{ scale: lift.get() }] }));
-  const clipStyle = useAnimatedStyle(() => {
-    const p = reduce ? 1 : t.get();
-    return { left: ox * (1 - p), top: oy * (1 - p), width: 16 + (w - 16) * p, height: 16 + (h - 16) * p, borderRadius: 10 + 2 * p, opacity: t.get() };
-  });
   const menuStyle = useAnimatedStyle(() => {
     const p = reduce ? 1 : t.get();
-    return { transform: [{ translateX: -ox * (1 - p) }, { translateY: -oy * (1 - p) }] };
+    return { opacity: t.get(), transform: [{ scale: 0.86 + 0.14 * p }] };
   });
 
   const rows = items.map((item) => {
@@ -104,7 +98,7 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
           }}
           style={({ pressed }) => [s.item, pressed && { backgroundColor: item.destructive ? `${c.danger}1A` : `${c.text}11` }]}
         >
-          {item.icon ? <Icon name={item.icon} size={16} color={tone} /> : null}
+          {item.icon ? <Icon name={item.icon} size={20} color={tone} strokeWidth={1.7} /> : null}
           <Text numberOfLines={1} style={[s.label, { color: tone }]}>
             {item.label}
           </Text>
@@ -131,14 +125,12 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
           <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel={tx('Close menu')} />
           {size ? (
             <View style={[s.portal, { left, top }]}>
-              <Animated.View style={[s.clip, clipStyle]}>
-                <Animated.View
-                  accessibilityRole="menu"
-                  accessibilityViewIsModal
-                  style={[s.menu, { width: size.w, height: size.h, backgroundColor: c.surface2, borderColor: c.border }, menuStyle]}
-                >
-                  {rows}
-                </Animated.View>
+              <Animated.View
+                accessibilityRole="menu"
+                accessibilityViewIsModal
+                style={[s.menu, s.shadow, { width: size.w, height: size.h, backgroundColor: c.surface2, borderColor: c.border, transformOrigin: [ox, oy, 0] }, menuStyle]}
+              >
+                {rows}
               </Animated.View>
             </View>
           ) : (
@@ -159,8 +151,8 @@ export function ContextMenu({ items, children, disabled = false }: { items: Item
 const s = StyleSheet.create({
   portal: { position: 'absolute' },
   measure: { alignSelf: 'flex-start', opacity: 0 },
-  clip: { position: 'absolute', overflow: 'hidden', boxShadow: '0 18px 28px rgba(0,0,0,0.2)' },
-  menu: { position: 'absolute', left: 0, top: 0, minWidth: 224, padding: 6, borderRadius: 12, borderWidth: 1 },
-  item: { minHeight: TAP, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, borderRadius: 8 },
-  label: { flexShrink: 1, fontFamily: font.sans, fontSize: fs.sm },
+  shadow: { boxShadow: '0 18px 36px rgba(0,0,0,0.32)' },
+  menu: { position: 'absolute', left: 0, top: 0, minWidth: 232, padding: 6, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
+  item: { minHeight: TAP + 4, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 14, borderRadius: 16 },
+  label: { flexShrink: 1, fontFamily: font.medium, fontSize: fs.base },
 });

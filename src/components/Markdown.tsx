@@ -1,92 +1,17 @@
-import { Fragment } from 'react';
+import { Fragment, memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { createIncrementalParser, sameBlock, type Align, type Block } from '@/components/markdown/parse';
 import { font, fs, useColors, type Colors } from '@/theme';
 import { CodeBlock } from '@/ui/code-block';
+import { perf } from '@/ui/stream/perf';
+import { VISUAL_LANGS, Visual } from '@/viz/Visual';
 
-// ponytail: covers what chat replies use (fences, headings, nested lists, quotes, rules, GitHub tables,
-// inline code/bold/italic/links). Swap in a full parser when replies need more.
-type Align = 'left' | 'center' | 'right';
-type Block =
-  | { t: 'code'; lang: string; text: string; open: boolean }
-  | { t: 'h'; level: number; text: string }
-  | { t: 'li'; marker: string; text: string; level: number }
-  | { t: 'quote'; text: string }
-  | { t: 'hr' }
-  | { t: 'table'; head: string[]; align: Align[]; rows: string[][] }
-  | { t: 'p'; text: string };
+// Parsing lives in markdown/parse.ts. While a reply streams, the blocks above its last blank line are parsed once
+// and keep their identity, and every block row is memoized on its content: per update only the open last block
+// re-renders (see scripts/bench-stream.mjs for the numbers).
 
-const HR = /^\s{0,3}([-*_])(\s*\1){2,}\s*$/;
-const DELIM = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
-
-/** "| a | b |" -> ["a", "b"]; a backslash-escaped pipe stays in its cell. */
-function cells(line: string): string[] {
-  return line
-    .trim()
-    .replace(/\\\|/g, '\u0000')
-    .replace(/^\|/, '')
-    .replace(/\|$/, '')
-    .split('|')
-    .map(c => c.trim().replace(/\u0000/g, '|'));
-}
-
-function parse(src: string): Block[] {
-  const blocks: Block[] = [];
-  const lines = src.split('\n');
-  let para: string[] = [];
-  // Indents of the open list items; an item's level is how many open items sit left of it.
-  let indents: number[] = [];
-  const flush = () => {
-    if (para.length) blocks.push({ t: 'p', text: para.join(' ') });
-    para = [];
-  };
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const fence = line.match(/^```(\w*)/);
-    if (fence) {
-      flush();
-      indents = [];
-      const body: string[] = [];
-      while (++i < lines.length && !lines[i].startsWith('```')) body.push(lines[i]);
-      blocks.push({ t: 'code', lang: fence[1], text: body.join('\n'), open: i >= lines.length }); // an unclosed fence (mid-stream) still renders
-      continue;
-    }
-    if (line.includes('|') && i + 1 < lines.length && DELIM.test(lines[i + 1]) && cells(lines[i + 1]).length === cells(line).length) {
-      flush();
-      indents = [];
-      const head = cells(line);
-      const align = cells(lines[++i]).map((d): Align => (d.endsWith(':') ? (d.startsWith(':') ? 'center' : 'right') : 'left'));
-      const rows: string[][] = [];
-      while (i + 1 < lines.length && lines[i + 1].includes('|')) rows.push(cells(lines[++i]));
-      blocks.push({ t: 'table', head, align, rows });
-      continue;
-    }
-    const hr = HR.test(line);
-    const h = line.match(/^(#{1,4})\s+(.*)/);
-    const li = hr ? null : line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)/);
-    const q = line.match(/^>\s?(.*)/);
-    if (!hr && !h && !li && !q && line.trim()) {
-      para.push(line.trim());
-      continue;
-    }
-    flush();
-    if (li) {
-      const indent = li[1].replace(/\t/g, '    ').length;
-      while (indents.length && indents[indents.length - 1] >= indent) indents.pop();
-      blocks.push({ t: 'li', marker: /\d/.test(li[2]) ? li[2] : indents.length ? '◦' : '•', text: li[3], level: indents.length });
-      indents.push(indent);
-      continue;
-    }
-    if (line.trim()) indents = [];
-    if (hr) blocks.push({ t: 'hr' });
-    else if (h) blocks.push({ t: 'h', level: h[1].length, text: h[2] });
-    else if (q) blocks.push({ t: 'quote', text: q[1] });
-  }
-  flush();
-  return blocks;
-}
-
-function Inline({ text, c }: { text: string; c: Colors }) {
+const Inline = memo(function Inline({ text, c }: { text: string; c: Colors }) {
   const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g);
   return (
     <>
@@ -104,7 +29,7 @@ function Inline({ text, c }: { text: string; c: Colors }) {
       })}
     </>
   );
-}
+});
 
 // beUI table look (beui.dev/components/motion/table): square bordered frame on the background, bg-muted
 // header in font-medium muted text, rows split by border/60, px-4 cells, text-sm, 48px rows.
@@ -137,34 +62,46 @@ function Table({ head, align, rows, c }: { head: string[]; align: Align[]; rows:
   );
 }
 
+/** One block. Re-renders only when its content (or the theme) changes, never because a later block grew. */
+const BlockView = memo(
+  function BlockView({ b, c }: { b: Block; c: Colors }) {
+    if (__DEV__ && perf.on) perf.countBlock();
+    const body = { color: c.text, fontFamily: font.sans, fontSize: fs.base, lineHeight: 24 };
+    switch (b.t) {
+      case 'code':
+        return VISUAL_LANGS.includes(b.lang) ? <Visual lang={b.lang} source={b.text} streaming={b.open} /> : <CodeBlock lang={b.lang} code={b.text} streaming={b.open} />;
+      case 'h':
+        return <Text accessibilityRole="header" style={[body, { fontFamily: font.semibold, fontSize: b.level === 1 ? fs.lg : fs.md }]}><Inline text={b.text} c={c} /></Text>;
+      case 'li':
+        return (
+          <View style={{ flexDirection: 'row', gap: 8, paddingLeft: 4 + 20 * b.level }}>
+            <Text style={[body, { color: c.muted }]}>{b.marker}</Text>
+            <Text style={[body, { flex: 1 }]}><Inline text={b.text} c={c} /></Text>
+          </View>
+        );
+      case 'quote':
+        return <Text style={[body, { color: c.secondary, borderLeftWidth: 3, borderLeftColor: c.border, paddingLeft: 12 }]}><Inline text={b.text} c={c} /></Text>;
+      case 'hr':
+        return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.border, marginVertical: 6 }} />;
+      case 'table':
+        return <Table head={b.head} align={b.align} rows={b.rows} c={c} />;
+      default:
+        return <Text style={body}><Inline text={b.text} c={c} /></Text>;
+    }
+  },
+  (a, b) => a.c === b.c && sameBlock(a.b, b.b),
+);
+
 export function Markdown({ text }: { text: string }) {
   const c = useColors();
-  const body = { color: c.text, fontFamily: font.sans, fontSize: fs.base, lineHeight: 24 };
+  // One parser per mounted reply: it keeps the settled blocks between updates.
+  const [parser] = useState(createIncrementalParser);
+  const blocks = parser.update(text);
   return (
     <View style={{ gap: 10 }}>
-      {parse(text).map((b, i) => {
-        switch (b.t) {
-          case 'code':
-            return <CodeBlock key={i} lang={b.lang} code={b.text} streaming={b.open} />;
-          case 'h':
-            return <Text key={i} accessibilityRole="header" style={[body, { fontFamily: font.semibold, fontSize: b.level === 1 ? fs.lg : fs.md }]}><Inline text={b.text} c={c} /></Text>;
-          case 'li':
-            return (
-              <View key={i} style={{ flexDirection: 'row', gap: 8, paddingLeft: 4 + 20 * b.level }}>
-                <Text style={[body, { color: c.muted }]}>{b.marker}</Text>
-                <Text style={[body, { flex: 1 }]}><Inline text={b.text} c={c} /></Text>
-              </View>
-            );
-          case 'quote':
-            return <Text key={i} style={[body, { color: c.secondary, borderLeftWidth: 3, borderLeftColor: c.border, paddingLeft: 12 }]}><Inline text={b.text} c={c} /></Text>;
-          case 'hr':
-            return <View key={i} style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.border, marginVertical: 6 }} />;
-          case 'table':
-            return <Table key={i} head={b.head} align={b.align} rows={b.rows} c={c} />;
-          default:
-            return <Text key={i} style={body}><Inline text={b.text} c={c} /></Text>;
-        }
-      })}
+      {blocks.map((b, i) => (
+        <BlockView key={i} b={b} c={c} />
+      ))}
     </View>
   );
 }

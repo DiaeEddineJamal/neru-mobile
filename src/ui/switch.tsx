@@ -3,12 +3,14 @@
 // a 4px stretch toward the destination) and the 200ms track colour; a press on a
 // disabled switch shakes the thumb after 200ms. Not ported: focus-visible ring
 // and the optional inline label (wrap it in a row yourself).
+// Colours follow Claude's app: the accent track when on, a neutral track when off, and a white thumb. The switch
+// plays the on/off haptic itself, so callers should not add their own.
 import { haptic } from '@/haptics';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
-import { useColors } from '@/theme';
+import { useColors, useScheme } from '@/theme';
 
 const THUMB_SPRING = { stiffness: 800, damping: 80, mass: 4 };
 const TRAVEL = 40; // track 48 minus 2 x 4 padding
@@ -18,13 +20,15 @@ type Props = { value: boolean; onValueChange: (value: boolean) => void; disabled
 
 export function Switch({ value, onValueChange, disabled, accessibilityLabel }: Props) {
   const c = useColors();
+  const light = useScheme() === 'light';
   const reduce = useReducedMotion();
   const [pressed, setPressed] = useState(false);
   const shake = useSharedValue(0);
   const squish = !disabled && pressed && !reduce;
   const width = squish ? 24 : 20;
   const left = value ? TRAVEL - width : 0;
-  const trackColor = value ? c.mossAction : `${c.muted}99`;
+  // c.surface3 all but vanishes on a light card, so the light theme's off track is a muted grey.
+  const trackColor = value ? c.mossAction : light ? `${c.muted}55` : c.surface3;
 
   const trackStyle = useAnimatedStyle(() => ({
     backgroundColor: reduce ? trackColor : withTiming(trackColor, { duration: 200 }),
@@ -50,14 +54,14 @@ export function Switch({ value, onValueChange, disabled, accessibilityLabel }: P
       onPressOut={() => setPressed(false)}
       onPress={() => {
         if (disabled) return;
-        haptic.light();
+        haptic.toggle(!value);
         onValueChange(!value);
       }}
       style={disabled ? s.disabled : undefined}
     >
       <Animated.View style={[s.track, trackStyle]}>
         <View style={s.rail}>
-          <Animated.View style={[s.thumb, { backgroundColor: c.bg }, thumbStyle]} />
+          <Animated.View style={[s.thumb, thumbStyle]} />
         </View>
       </Animated.View>
     </Pressable>
@@ -73,6 +77,7 @@ const s = StyleSheet.create({
     top: 0,
     height: 20,
     borderRadius: 10,
+    backgroundColor: '#ffffff',
     boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
   },
 });

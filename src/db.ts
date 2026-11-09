@@ -16,14 +16,26 @@ db.execSync(`
 `);
 // Added later: the connector tools a reply used. Older databases get the column on first launch.
 if (!db.getAllSync<{ name: string }>('PRAGMA table_info(messages)').some(c => c.name === 'tools')) db.execSync('ALTER TABLE messages ADD COLUMN tools TEXT');
+// 0.16: chats can sit in a project, and incognito chats are kept out of memory.
+{
+  const cols = db.getAllSync<{ name: string }>('PRAGMA table_info(chats)').map(c => c.name);
+  if (!cols.includes('project_id')) db.execSync('ALTER TABLE chats ADD COLUMN project_id TEXT');
+  if (!cols.includes('incognito')) db.execSync('ALTER TABLE chats ADD COLUMN incognito INTEGER NOT NULL DEFAULT 0');
+}
 
 export type Attachment = { id: string; kind: 'image' | 'file'; name: string; uri: string; mime: string; base64?: string; /** A text file's contents, sent inline. */ text?: string };
 /** A connector tool a reply called: which one, where, and how it went. */
 export type ToolStep = { name: string; label: string; status: 'running' | 'done' | 'failed' | 'denied'; /** Arguments sent and the start of the result. */ detail?: string };
 export type Message = { id: string; role: 'user' | 'assistant'; text: string; reasoning?: string; attachments?: Attachment[]; model?: string; error?: string; tools?: ToolStep[]; createdAt: number };
-export type Chat = { id: string; title: string; starred: boolean; updatedAt: number; messages: Message[] };
+export type Chat = {
+  id: string; title: string; starred: boolean; updatedAt: number; messages: Message[];
+  /** The project this chat belongs to (see src/projects.ts). */
+  projectId?: string;
+  /** Incognito chats never feed memory and are not referenced from other chats. */
+  incognito?: boolean;
+};
 
-type ChatRow = { id: string; title: string; starred: number; updated_at: number };
+type ChatRow = { id: string; title: string; starred: number; updated_at: number; project_id: string | null; incognito: number };
 type MessageRow = { id: string; chat_id: string; role: 'user' | 'assistant'; text: string; reasoning: string | null; attachments: string | null; model: string | null; error: string | null; tools: string | null; created_at: number };
 
 export function loadChats(): Chat[] {
@@ -46,11 +58,14 @@ export function loadChats(): Chat[] {
     });
     byChat.set(r.chat_id, list);
   }
-  return chats.map(c => ({ id: c.id, title: c.title, starred: !!c.starred, updatedAt: c.updated_at, messages: byChat.get(c.id) ?? [] }));
+  return chats.map(c => ({ id: c.id, title: c.title, starred: !!c.starred, updatedAt: c.updated_at, messages: byChat.get(c.id) ?? [], projectId: c.project_id ?? undefined, incognito: !!c.incognito }));
 }
 
 export function saveChat(c: Chat) {
-  db.runSync('INSERT INTO chats (id, title, starred, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, starred = excluded.starred, updated_at = excluded.updated_at', [c.id, c.title, c.starred ? 1 : 0, c.updatedAt]);
+  db.runSync(
+    'INSERT INTO chats (id, title, starred, updated_at, project_id, incognito) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, starred = excluded.starred, updated_at = excluded.updated_at, project_id = excluded.project_id, incognito = excluded.incognito',
+    [c.id, c.title, c.starred ? 1 : 0, c.updatedAt, c.projectId ?? null, c.incognito ? 1 : 0],
+  );
 }
 
 export function saveMessage(chatId: string, m: Message) {

@@ -2,15 +2,16 @@
 // beUI tokenises with shiki, too heavy for Hermes; ui/highlight colours lines like VS Code's Dark+/Light+ instead.
 // Not ported: highlightLines/filename/wrap (Markdown has no use for them).
 import * as Clipboard from 'expo-clipboard';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { Icon } from '@/components/Icon';
 import { font, fs, useColors, useScheme } from '@/theme';
 import { Button, SwapIcon } from '@/ui/button';
-import { tokenize, vscode } from '@/ui/highlight';
+import { lineCache, tokenizeCached, vscode, type Kind, type Token } from '@/ui/highlight';
 import { Loader } from '@/ui/loader';
+import { perf } from '@/ui/stream/perf';
 import { t as tx } from '@/i18n';
 
 type Props = { code: string; lang: string; /** Fence still open mid-stream: shows "Writing" and follows the tail. */ streaming?: boolean };
@@ -31,9 +32,12 @@ export function CodeBlock({ code, lang, streaming = false }: Props) {
   };
 
   const palette = vscode[useScheme()];
-  const lines = useMemo(() => tokenize(code, lang), [code, lang]);
-  // No ligatures: `<!--` and `=>` must read as typed.
-  const line = { fontFamily: font.mono, fontSize: fs.xs, lineHeight: 20, fontVariant: ['no-common-ligatures', 'no-contextual'] as ('no-common-ligatures' | 'no-contextual')[] };
+  // Lines keep their tokens between updates: a fence that streams in tokenizes only its newest line, and only that
+  // line's row re-renders.
+  const [cache] = useState(lineCache);
+  const before = cache.tokenized;
+  const lines = tokenizeCached(cache, code, lang);
+  if (__DEV__ && perf.on) perf.countLines(cache.tokenized - before);
   const statusColor = streaming ? c.link : c.sage;
 
   return (
@@ -64,12 +68,7 @@ export function CodeBlock({ code, lang, streaming = false }: Props) {
         <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false}>
           <View>
             {lines.map((tokens, i) => (
-              <View key={i} style={{ flexDirection: 'row', minHeight: 20 }}>
-                <Text aria-hidden style={[line, s.gutter, { color: c.muted }]}>{i + 1}</Text>
-                <Text selectable style={[line, { color: palette.plain, paddingLeft: 4, paddingRight: 16 }]}>
-                  {tokens.map((t, j) => <Text key={j} style={t.kind === 'comment' ? { color: palette.comment, fontStyle: 'italic' } : { color: palette[t.kind] }}>{t.text}</Text>)}
-                </Text>
-              </View>
+              <CodeLine key={i} n={i + 1} tokens={tokens} palette={palette} muted={c.muted} />
             ))}
           </View>
         </ScrollView>
@@ -77,6 +76,20 @@ export function CodeBlock({ code, lang, streaming = false }: Props) {
     </View>
   );
 }
+
+// No ligatures: `<!--` and `=>` must read as typed.
+const line = { fontFamily: font.mono, fontSize: fs.xs, lineHeight: 20, fontVariant: ['no-common-ligatures', 'no-contextual'] as ('no-common-ligatures' | 'no-contextual')[] };
+
+const CodeLine = memo(function CodeLine({ n, tokens, palette, muted }: { n: number; tokens: Token[]; palette: Record<Kind, string>; muted: string }) {
+  return (
+    <View style={{ flexDirection: 'row', minHeight: 20 }}>
+      <Text aria-hidden style={[line, s.gutter, { color: muted }]}>{n}</Text>
+      <Text selectable style={[line, { color: palette.plain, paddingLeft: 4, paddingRight: 16 }]}>
+        {tokens.map((t, j) => <Text key={j} style={t.kind === 'comment' ? { color: palette.comment, fontStyle: 'italic' } : { color: palette[t.kind] }}>{t.text}</Text>)}
+      </Text>
+    </View>
+  );
+});
 
 const s = StyleSheet.create({
   box: { width: '100%', overflow: 'hidden', borderRadius: 16 },

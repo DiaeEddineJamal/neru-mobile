@@ -1,6 +1,8 @@
 // Port of beui.dev/components/motion/button (registry: button-base), lg size
 // Press scale 0.93 on SPRING_PRESS, primary/secondary/ghost variants, disabled at
-// 50% opacity. Additions the base button does not have: `destructive` (primary
+// 50% opacity. Styled like Claude's app: `primary` is a high-contrast pill (text colour fill, background-colour
+// label) in bold type; `accent` fills it with the theme's action colour instead. Every press plays a light haptic.
+// Additions the base button does not have: `destructive` (primary
 // shape in the danger colour, standing in for beUI's `outline`), a leading icon,
 // and `loading`, which trades the label for the shared LoaderCircle spinner on SPRING_SWAP (the token
 // beUI reserves for label/icon slot swaps) while keeping the button's width.
@@ -17,7 +19,7 @@ import { SPRING_PRESS, SPRING_SWAP } from '@/ui/motion';
 
 const PRESS_SCALE = 0.93;
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+type Variant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'destructive';
 type Props = {
   title: string;
   onPress: () => void;
@@ -42,9 +44,10 @@ export function ActionButton({ title, onPress, variant = 'primary', icon, loadin
   }, [loading, reduce, swap]);
 
   const look = {
-    primary: { bg: c.mossAction, fg: c.onAction, border: 'transparent' },
-    secondary: { bg: c.surface2, fg: c.text, border: c.border },
-    ghost: { bg: 'transparent', fg: c.muted, border: 'transparent' },
+    primary: { bg: c.text, fg: c.bg, border: 'transparent' },
+    accent: { bg: c.mossAction, fg: c.onAction, border: 'transparent' },
+    secondary: { bg: c.surface3, fg: c.text, border: 'transparent' },
+    ghost: { bg: 'transparent', fg: c.secondary, border: 'transparent' },
     destructive: { bg: c.danger, fg: c.onAction, border: 'transparent' },
   }[variant];
 
@@ -84,9 +87,9 @@ export function ActionButton({ title, onPress, variant = 'primary', icon, loadin
 }
 
 const s = StyleSheet.create({
-  base: { height: TAP, paddingHorizontal: 24, borderRadius: 9999, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  base: { height: TAP + 4, paddingHorizontal: 24, borderRadius: 28, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   disabled: { opacity: 0.5 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   center: { alignItems: 'center', justifyContent: 'center' },
-  label: { fontFamily: font.medium, fontSize: fs.base },
+  label: { fontFamily: font.bold, fontSize: fs.md },
 });

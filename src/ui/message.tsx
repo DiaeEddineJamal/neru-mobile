@@ -1,10 +1,12 @@
 // Port of beui.dev/components/agents/message (assistant row) + agents/streaming-response (completion actions).
 // beUI's streaming-response has no caret: while streaming it only hides the actions, which fade up once the reply settles.
 // Not ported: thumbs feedback and the sources disclosure (no data for them yet), hover colours.
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import Animated, { type EntryExitAnimationFunction, FadeIn, FadeOut, LayoutAnimationConfig, useReducedMotion, withTiming } from 'react-native-reanimated';
 
+import { ArtifactCard } from '@/artifacts/ArtifactCard';
+import { splitArtifacts, type Artifact } from '@/artifacts/parse';
 import { Icon } from '@/components/Icon';
 import { Markdown } from '@/components/Markdown';
 import { useColors } from '@/theme';
@@ -21,9 +23,19 @@ const actionsIn: EntryExitAnimationFunction = () => {
   };
 };
 
-type Props = { text: string; streaming: boolean; onCopy: () => void; onRetry?: () => void };
+type Props = { text: string; streaming: boolean; chatId?: string | null; messageId?: string; onCopy: () => void; onRetry?: () => void };
 
-export function AssistantMessage({ text, streaming, onCopy, onRetry }: Props) {
+/** An artifact card that re-renders only when its artifact changed: a closed one stays put while the reply streams on. */
+const ArtifactSlot = memo(
+  function ArtifactSlot({ artifact, chatId, messageId }: { artifact: Artifact; chatId: string | null; messageId: string }) {
+    return <ArtifactCard artifact={artifact} chatId={chatId} messageId={messageId} />;
+  },
+  (a, b) =>
+    a.chatId === b.chatId && a.messageId === b.messageId && a.artifact.id === b.artifact.id && a.artifact.title === b.artifact.title && a.artifact.kind === b.artifact.kind
+    && a.artifact.language === b.artifact.language && a.artifact.open === b.artifact.open && a.artifact.content === b.artifact.content,
+);
+
+export function AssistantMessage({ text, streaming, chatId = null, messageId = '', onCopy, onRetry }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [copied, setCopied] = useState(false);
@@ -39,7 +51,13 @@ export function AssistantMessage({ text, streaming, onCopy, onRetry }: Props) {
 
   return (
     <View accessibilityLabel={tx('assistant message')} accessibilityState={{ busy: streaming }} style={{ width: '100%' }}>
-      <Markdown text={text} />
+      {/* Artifacts (<artifact> blocks) become cards; the text around them is Markdown. Keys stay put as the reply grows,
+          so each Markdown keeps its incremental parser. */}
+      <View style={{ gap: 10 }}>
+        {splitArtifacts(text).map((seg, i) =>
+          seg.type === 'artifact' ? <ArtifactSlot key={`a${i}`} artifact={seg.artifact} chatId={chatId} messageId={messageId} /> : seg.text.trim() ? <Markdown key={`t${i}`} text={seg.text} /> : null,
+        )}
+      </View>
       <LayoutAnimationConfig skipEntering>
         {!streaming && text ? (
           <Animated.View

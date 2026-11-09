@@ -1,5 +1,19 @@
 # Neru mobile changelog
 
+## 0.16.0 · 2026-11-09
+
+**A fresh look.** A full-screen sidebar, calmer dark mode, smoother replies from phone models, and new places for your memory, projects, artifacts and skills.
+
+- **Smoother replies.** Phone models now stream text at a steady pace instead of in jumps. Only the new part of a reply is redrawn, the rest of the app stays still while it writes, and code blocks highlight just the lines that changed.
+- **A new sidebar.** The sidebar fills the screen, with Projects, Artifacts, pinned chats and recents, your photo and a New session button. Pages open over it without anything sliding underneath, and your paired desktop lives in one tidy Desktop panel.
+- **Memory and projects.** Neru can remember useful things from your chats, which you can read, edit or reset in Settings → Memory, and look up past chats when it helps. Projects keep chats, instructions and their own memory together. Memory never uses incognito chats.
+- **Artifacts, charts and diagrams.** Documents, code files, web pages and SVG drawings land in Artifacts, where you can open, copy and share them. Models can also draw interactive charts and diagrams right in the conversation.
+- **A new composer.** The message box stays compact until you tap it. Its + sheet adds photos and files, a project, skills like /draft-email or /plan-a-trip, Research and a Memory switch.
+- **Profile and settings.** Add a photo, your name and personal preferences that apply to every chat. Settings is regrouped, with new Usage and Notifications pages, and Neru can switch models when a provider flags a message.
+- **Connectors and keys.** Connectors show their tool counts and have a Browse view with search and categories. Providers and keys shows each provider's logo and status, with a simpler sheet to paste and test a key.
+- **Look and feel.** A neutral near-black dark mode with your theme as the accent, new fonts and outline icons, a splash screen in your theme's colors, a mascot that blinks and hops, and haptics that you can actually feel on Android.
+- **Español.** Neru now speaks Spanish, and French is complete. Arabic and Darija have been removed.
+
 ## 0.15.1 · 2026-10-27
 
 **Smoother tools.** Phone models use connectors more reliably, and tool steps, reasoning and approvals are easier to read.

@@ -76,3 +76,33 @@ export function tokenize(code: string, lang: string): Token[][] {
   let mode: Mode = null;
   return code.split('\n').map(line => { const r = tokenizeLine(line, lang, mode); mode = r.mode; return r.tokens; });
 }
+
+/** Tokenized lines kept between calls, so a block that grows only tokenizes its new or changed lines. */
+export type LineCache = { lang: string; lines: { src: string; mode: Mode; tokens: Token[]; next: Mode }[]; tokenized: number };
+export const lineCache = (): LineCache => ({ lang: '', lines: [], tokenized: 0 });
+
+/**
+ * Same result as tokenize(), but lines whose text and starting mode match the cache keep their tokens (the same
+ * array, so memoized line rows skip them). A streaming fence re-tokenizes only its last line per update.
+ */
+export function tokenizeCached(cache: LineCache, code: string, lang: string): Token[][] {
+  if (cache.lang !== lang) (cache.lang = lang), (cache.lines = []);
+  const src = code.split('\n');
+  let mode: Mode = null;
+  const out: Token[][] = new Array(src.length);
+  for (let i = 0; i < src.length; i++) {
+    const hit = cache.lines[i];
+    if (hit && hit.src === src[i] && hit.mode === mode) {
+      out[i] = hit.tokens;
+      mode = hit.next;
+      continue;
+    }
+    const r = tokenizeLine(src[i], lang, mode);
+    cache.tokenized++;
+    cache.lines[i] = { src: src[i], mode, tokens: r.tokens, next: r.mode };
+    out[i] = r.tokens;
+    mode = r.mode;
+  }
+  cache.lines.length = src.length;
+  return out;
+}

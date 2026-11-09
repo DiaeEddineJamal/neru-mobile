@@ -1,10 +1,15 @@
 const fs = require('fs');
 const path = require('path');
-const { withAndroidManifest, withDangerousMod } = require('expo/config-plugins');
-const { generateImageAsync } = require('@expo/image-utils');
+const { withAndroidManifest, withAndroidStyles, withDangerousMod } = require('expo/config-plugins');
+const { compositeImagesAsync, generateImageAsync, generateImageBackgroundAsync } = require('@expo/image-utils');
 
 // The launcher icon follows the accent theme: one activity-alias per theme in assets/images/themes (made by
 // scripts/theme-icons.py), each with its own adaptive icon. Moss keeps Expo's ic_launcher. NeruAppIcon switches them.
+//
+// The Android 12+ splash follows it too. The starting window ignores an activity-alias's theme (an alias only
+// carries its icon and label), so each theme gets a `Theme.App.SplashScreen.<Theme>` style whose animated icon is that
+// theme's mascot, and NeruAppIcon.setSplash calls SplashScreen.setSplashScreenTheme, which the system persists (by
+// style name) for the next cold start. Moss resets it to the manifest's Theme.App.SplashScreen.
 const THEMES_DIR = 'assets/images/themes';
 const DPI = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 const cap = s => s[0].toUpperCase() + s.slice(1);
@@ -51,4 +56,42 @@ const withAliases = config => withAndroidManifest(config, config => {
   return config;
 });
 
-module.exports = config => withAliases(withIcons(config));
+// The logo width expo-splash-screen uses (app.json), so the themed logos match the Moss one exactly.
+const splashWidth = config => {
+  const entry = (config.plugins ?? []).find(p => Array.isArray(p) && p[0] === 'expo-splash-screen');
+  return entry?.[1]?.imageWidth ?? 100;
+};
+
+// Same layout as expo-splash-screen's splashscreen_logo: the logo centered on a 288dp transparent canvas.
+const withSplashLogos = config => withDangerousMod(config, ['android', async config => {
+  const root = config.modRequest.projectRoot;
+  const res = path.join(config.modRequest.platformProjectRoot, 'app/src/main/res');
+  const width = splashWidth(config);
+  for (const theme of themes(root)) {
+    for (const [dpi, scale] of Object.entries(DPI)) {
+      const size = width * scale;
+      const canvas = 288 * scale;
+      const background = await generateImageBackgroundAsync({ width: canvas, height: canvas, backgroundColor: 'transparent', resizeMode: 'cover' });
+      const { source: foreground } = await generateImageAsync({ projectRoot: root, cacheType: `theme-splash-${theme}` }, { src: path.join(root, THEMES_DIR, theme, 'mascot.png'), width: size, height: size, resizeMode: 'contain' });
+      const image = await compositeImagesAsync({ background, foreground, x: (canvas - size) / 2, y: (canvas - size) / 2 });
+      fs.mkdirSync(path.join(res, `drawable-${dpi}`), { recursive: true });
+      fs.writeFileSync(path.join(res, `drawable-${dpi}`, `splashscreen_logo_${theme}.png`), image);
+    }
+  }
+  return config;
+}]);
+
+const withSplashStyles = config => withAndroidStyles(config, config => {
+  const list = themes(config.modRequest.projectRoot);
+  const style = (config.modResults.resources.style ?? []).filter(s => !s.$.name.startsWith('Theme.App.SplashScreen.'));
+  config.modResults.resources.style = [
+    ...style,
+    ...list.map(t => ({
+      $: { name: `Theme.App.SplashScreen.${cap(t)}`, parent: 'Theme.App.SplashScreen' },
+      item: [{ $: { name: 'windowSplashScreenAnimatedIcon' }, _: `@drawable/splashscreen_logo_${t}` }],
+    })),
+  ];
+  return config;
+});
+
+module.exports = config => withSplashStyles(withSplashLogos(withAliases(withIcons(config))));

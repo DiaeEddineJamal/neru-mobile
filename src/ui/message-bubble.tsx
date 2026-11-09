@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
+import { visibleText } from '@/skills';
 import { font, fs, useColors } from '@/theme';
 import { t } from '@/i18n';
 
@@ -19,7 +20,9 @@ type Props = {
   animateIn?: boolean;
 };
 
-export function MessageBubble({ text, onLongPress, animateIn = true }: Props) {
+export function MessageBubble({ text: raw, onLongPress, animateIn = true }: Props) {
+  // A skill's or research mode's instructions ride along for the model, not for the reader.
+  const text = visibleText(raw);
   const c = useColors();
   const reduce = useReducedMotion();
   const pop = animateIn && !reduce;

@@ -17,7 +17,7 @@ export function AppTour({ drawer }: { drawer: DrawerControl }) {
 
   useEffect(() => {
     if (!pending || !home || open) return;
-    // Started from Settings, the drawer is still open under it; the tour begins on the home screen itself.
+    // Started from Settings, the sidebar is still open under it; the tour begins on the home screen itself.
     drawer.close();
     const timer = setTimeout(() => setOpen(true), 600);
     return () => clearTimeout(timer);
@@ -26,12 +26,13 @@ export function AppTour({ drawer }: { drawer: DrawerControl }) {
   const steps = useMemo<TourStep[]>(() => [
     { title: t('Welcome to Neru'), body: t('A one-minute look around, one control at a time. Skip whenever you like; it lives in Settings for later.') },
     { target: 'model', title: t('Pick a model'), body: t('Free cloud models on your own keys, or Pocket Lab models that run offline on this phone. When one runs out, Neru moves to the next.') },
-    { target: 'prompt', title: t('The message box'), body: t('Ask anything. Long-press a message to copy, edit or hear it read aloud; the pencil at the top starts a new chat.') },
-    { target: 'attach', title: t('Attach anything'), body: t('Take a photo, pick from your gallery, or add PDFs and documents for Neru to read.') },
+    // The + button only shows once the empty-chat composer opens, so the attach tip points at the field itself.
+    { target: 'prompt', title: t('The message box'), body: t('Ask anything. Tap the field, then + to add photos and documents. Long-press a message to copy, edit or hear it read aloud.') },
     { target: 'mic', title: t('Dictation'), body: t('Speak instead of typing. The stripes move with your voice; tap again when you’re done.') },
-    { target: 'menu', title: t('Your chats'), body: t('Tap here or swipe from the left edge. Starred chats sit on top; swipe a chat to star, rename or delete it.'), enter: drawer.close },
-    { target: 'drawer-tabs', title: t('Chats and Desktop'), body: t('Pair with Neru on your computer to follow Code sessions, approve changes and message your Team from anywhere.'), enter: drawer.open },
-    { target: 'settings', title: t('Settings'), body: t('Your name, Pocket Lab, providers and keys, light and dark Themes, notifications and haptics.'), enter: drawer.open },
+    { target: 'menu', title: t('Your sidebar'), body: t('Tap here or swipe from the left edge. Pinned chats sit on top; swipe a chat right to pin, rename or delete it.'), enter: drawer.close },
+    { target: 'sidebar-desktop', title: t('Your desktop'), body: t('Pair with Neru on your computer to follow Code sessions, approve changes and message your Team from anywhere.'), enter: drawer.open },
+    { target: 'new-session', title: t('New session'), body: t('Starts a fresh chat from anywhere in the sidebar.'), enter: drawer.open },
+    { target: 'settings', title: t('Settings'), body: t('Your avatar opens your profile, Pocket Lab, providers and keys, themes, notifications and haptics.'), enter: drawer.open },
     { title: t('You’re all set'), body: t('Say hello whenever you’re ready. Neru learns your name and keeps your keys on this phone.'), enter: drawer.close },
   ], [drawer]);
 

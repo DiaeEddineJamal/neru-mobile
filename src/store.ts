@@ -5,7 +5,7 @@ import { deleteChatRow, deleteMessage, getApiKey, kvGetSync, kvSet, loadChats, s
 import { clearComposerDraft } from '@/drafts';
 import { nextModel, reason, recordSuccess, shouldSwitch } from '@/llm/fallback';
 import { listModels, streamChat, type ChatMessage, type ProviderConfig, type ToolCall } from '@/llm/stream';
-import { beforeCall, CLOUD_TOOLS_CHARS, coerceArgs, localToolPrompt, localToolsForTask, mayRun, parseArgs, parseLocalCalls, rejectsTools, rememberNoTools, toolMode, toolSpecs, unsupportedTools } from '@/llm/tools';
+import { beforeCall, CLOUD_TOOLS_CHARS, coerceArgs, connectedAppsPrompt, localToolPrompt, localToolsForTask, mayRun, parseArgs, parseLocalCalls, rejectsTools, rememberNoTools, toolMode, toolSpecs, unsupportedTools } from '@/llm/tools';
 import { chatTools, runTool } from '@/mcp/store';
 import { localModel } from '@/local/catalog';
 import { preloadLocal, streamLocal, unloadLocal } from '@/local/runtime';
@@ -371,13 +371,14 @@ async function streamReply(chatId: string) {
     if (connected.length && !tools.length) set({ notice: { chatId, text: tx('{model} can’t use connector tools, so it answers without them. Pick a model marked MCP tools to use them.', { model: local ? (localModel(model)?.name ?? model) : model }) } });
     try {
       // The conversation for this reply; tool calls and their results are added to it round by round.
-      const working: ChatMessage[] = [...messages];
+      // The system message also says which apps are connected, so the model uses them instead of saying it can't.
+      const working: ChatMessage[] = [tools.length ? { ...messages[0], text: `${messages[0].text}\n\n${connectedAppsPrompt(tools)}` } : messages[0], ...messages.slice(1)];
       const task = ([...messages].reverse().find(m => m.role === 'user')?.text ?? '').slice(0, 800);
       const useTextTools = () => {
         textTools = true;
         // A phone model's small context gets the tools for the app the user named; a cloud model gets them all.
         if (local) tools = localToolsForTask(tools, task);
-        working[0] = { ...messages[0], text: `${messages[0].text}\n\n${localToolPrompt(tools, local ? undefined : CLOUD_TOOLS_CHARS)}` };
+        working[0] = { ...messages[0], text: `${messages[0].text}\n\n${connectedAppsPrompt(tools)}\n\n${localToolPrompt(tools, local ? undefined : CLOUD_TOOLS_CHARS)}` };
       };
       if (textTools && tools.length) useTextTools();
       let shown = '';

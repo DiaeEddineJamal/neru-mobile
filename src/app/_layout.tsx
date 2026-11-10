@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { followThemeIcon } from '@/app-icon';
+import { FigureHost } from '@/artifacts/FigureHost';
 import { IconButton } from '@/components/Icon';
 import { startMcp } from '@/mcp/store';
 import { startNotifications } from '@/notify';
@@ -108,6 +109,7 @@ export default function RootLayout() {
             <Stack.Screen name="skills" options={{ ...modal, title: t('Skills') }} />
           </Stack>
           <DialogHost />
+          <FigureHost />
         </ToastProvider>
       </ThemeProvider>
       </KeyboardProvider>

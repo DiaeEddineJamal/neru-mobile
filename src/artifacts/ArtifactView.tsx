@@ -8,7 +8,8 @@ import { SvgXml } from 'react-native-svg';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 
-import { deckHtml, documentHtml, sheetHtml, sheetPreview } from '@/artifacts/html';
+import { needsHost, renderFigures } from '@/artifacts/figures';
+import { deckHtml, documentHtml, sheetHtml, sheetPreview, type Figures } from '@/artifacts/html';
 import { displayTitle, iconFor } from '@/artifacts/kinds';
 import type { Artifact } from '@/artifacts/parse';
 import { Icon } from '@/components/Icon';
@@ -170,6 +171,23 @@ function MermaidView({ code }: { code: string }) {
   return <Sandbox html={html} js background={c.bg} onMessage={m => setState(m === 'ok' ? 'ok' : m === 'offline' ? 'offline' : 'error')} />;
 }
 
+/**
+ * Mermaid diagrams of types the phone has no layout for (Gantt, class, ER…), drawn by the hidden web view once the
+ * artifact is written. Charts and the common diagrams are drawn straight into the page, so most texts need none.
+ */
+function useHostFigures(artifact: Artifact, active: boolean): Figures | undefined {
+  const [figures, setFigures] = useState<{ content: string; map: Figures }>();
+  useEffect(() => {
+    if (!active || !needsHost(artifact.content)) return;
+    let live = true;
+    void renderFigures(artifact.content, false).then(map => live && setFigures({ content: artifact.content, map }));
+    return () => {
+      live = false;
+    };
+  }, [artifact.content, active]);
+  return figures?.content === artifact.content ? figures.map : undefined;
+}
+
 /** The artifact itself, filling the screen. `follow`: it is being written, so keep its end in view. */
 export function ArtifactBody({ artifact, follow = false }: { artifact: Artifact; follow?: boolean }) {
   const c = useColors();
@@ -177,14 +195,15 @@ export function ArtifactBody({ artifact, follow = false }: { artifact: Artifact;
   const tail = useFollow(follow);
   // A Word or PDF document shows on paper once it is written; while it is being written, as live Markdown.
   const paper = artifact.kind === 'markdown' && !!artifact.format && !follow;
+  const figures = useHostFigures(artifact, paper || (artifact.kind === 'slides' && !follow));
   const html = useMemo(() => {
     if (artifact.kind === 'html') return pageHtml(artifact.content);
     if (artifact.kind === 'svg') return svgHtml(artifact.content);
-    if (artifact.kind === 'slides') return deckHtml(artifact);
+    if (artifact.kind === 'slides') return deckHtml(artifact, figures);
     if (artifact.kind === 'sheet') return sheetHtml(artifact);
-    if (paper) return documentHtml(artifact);
+    if (paper) return documentHtml(artifact, figures);
     return '';
-  }, [artifact, paper]);
+  }, [artifact, paper, figures]);
   if (paper) return <Sandbox html={html} js={false} background="#e9ece9" />;
   switch (artifact.kind) {
     case 'html':

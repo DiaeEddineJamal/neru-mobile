@@ -1,5 +1,13 @@
 # Neru mobile changelog
 
+## 0.18.0 · 2026-11-10
+
+**Charts in your files.** Word documents, PDFs and presentations can now hold charts and diagrams, documents fit the screen, and Gmail and other connected apps work with every model.
+
+- **Charts and diagrams in files.** Ask for a report or a deck with charts, graphs or diagrams and they are drawn right into the Word, PDF or PowerPoint file: bar, line, area, pie, donut and scatter charts, flowcharts, sequence diagrams and timelines. Gantt, class, ER and state diagrams work too when you are online. New skills /chart and /diagram make them on request.
+- **Documents that fit.** Wide tables no longer spill off the page: they scroll inside it, and a document can no longer be zoomed out past its own width.
+- **Gmail and connected apps.** Models now know which apps you have connected and use them instead of saying they can’t reach your email, calendar or files. Phone models also find the right tools when you say “my email” or “my meetings” without naming the app.
+
 ## 0.17.0 · 2026-11-10
 
 **Real files.** Ask for a Word document, a PDF, a presentation or a spreadsheet and get the real file, made right on your phone. Artifacts now open while they are still being written.

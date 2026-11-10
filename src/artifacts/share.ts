@@ -5,9 +5,10 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
 import { mermaidHtml, pageHtml } from '@/artifacts/ArtifactView';
-import { deckHtml, documentHtml, sheetHtml } from '@/artifacts/html';
+import { figureKey, renderFigures, type Figure } from '@/artifacts/figures';
+import { deckHtml, documentHtml, sheetHtml, type Figures } from '@/artifacts/html';
 import { displayTitle, fileFor } from '@/artifacts/kinds';
-import { docx, pptx, sheetsFrom, splitSlides, xlsx } from '@/artifacts/office';
+import { docx, pptx, sheetsFrom, splitSlides, xlsx, type FigureLookup } from '@/artifacts/office';
 import type { Artifact } from '@/artifacts/parse';
 import type { IconName } from '@/components/Icon';
 import { parse } from '@/components/markdown/parse';
@@ -64,25 +65,32 @@ export async function artifactFile(a: Artifact, format: ShareFormat): Promise<{ 
   const base = source.name.replace(/\.[^.]+$/, '');
   const name = `${base}.${format}`;
   const title = displayTitle(a);
+  // Charts and diagrams in the text: SVG for pages and PDFs, PNG as well for Word and PowerPoint.
+  const office = format === 'docx' || format === 'pptx';
+  const figures = a.kind === 'markdown' || a.kind === 'slides' ? await renderFigures(a.content, office) : new Map<string, Figure>();
+  const lookup: FigureLookup = (lang, text) => {
+    const f = figures.get(figureKey(lang, text));
+    return f?.png ? { png: f.png, width: f.width, height: f.height, alt: f.alt } : undefined;
+  };
   switch (format) {
     case 'pdf': {
       const deck = a.kind === 'slides';
       // Slides print one per landscape page; everything else on A4.
       const { uri } = await Print.printToFileAsync(
-        deck ? { html: deckHtml(a), width: 960, height: 540, margins: { top: 0, bottom: 0, left: 0, right: 0 } } : { html: printableHtml(a), width: 595, height: 842, margins: { top: 48, bottom: 48, left: 0, right: 0 } },
+        deck ? { html: deckHtml(a, figures), width: 960, height: 540, margins: { top: 0, bottom: 0, left: 0, right: 0 } } : { html: printableHtml(a, figures), width: 595, height: 842, margins: { top: 48, bottom: 48, left: 0, right: 0 } },
       );
       const file = fresh(name);
       await new File(uri).move(file);
       return { file, mime: MIME.pdf };
     }
     case 'docx':
-      return { file: write(name, docx(parse(a.content), title)), mime: MIME.docx };
+      return { file: write(name, docx(parse(a.content), title, lookup)), mime: MIME.docx };
     case 'pptx':
-      return { file: write(name, pptx(splitSlides(a.content, parse), title)), mime: MIME.pptx };
+      return { file: write(name, pptx(splitSlides(a.content, parse), title, lookup)), mime: MIME.pptx };
     case 'xlsx':
       return { file: write(name, xlsx(sheetsFrom(a.content, parse), title)), mime: MIME.xlsx };
     case 'html': {
-      const html = a.kind === 'html' ? pageHtml(a.content) : a.kind === 'mermaid' ? mermaidHtml(a.content, false) : a.kind === 'slides' ? deckHtml(a) : a.kind === 'sheet' ? sheetHtml(a) : documentHtml(a);
+      const html = a.kind === 'html' ? pageHtml(a.content) : a.kind === 'mermaid' ? mermaidHtml(a.content, false) : a.kind === 'slides' ? deckHtml(a, figures) : a.kind === 'sheet' ? sheetHtml(a) : documentHtml(a, figures);
       return { file: write(name, html), mime: MIME.html };
     }
   }
@@ -108,9 +116,9 @@ function write(name: string, content: string | Uint8Array): File {
 }
 
 /** What the PDF printer gets: the page for web pages and images, a typeset document for the rest. */
-function printableHtml(a: Artifact): string {
+function printableHtml(a: Artifact, figures: Figures): string {
   if (a.kind === 'html') return pageHtml(a.content);
   if (a.kind === 'svg') return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;display:flex;justify-content:center}svg{max-width:100%;height:auto}</style></head><body>${a.content}</body></html>`;
   if (a.kind === 'sheet') return sheetHtml(a);
-  return documentHtml(a);
+  return documentHtml(a, figures);
 }

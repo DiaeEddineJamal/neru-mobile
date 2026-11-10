@@ -79,9 +79,32 @@ function rootRels(main: string): string {
   return `${XML_HEAD}<Relationships xmlns="${REL_NS}"><Relationship Id="rId1" Type="${DOC_REL}/officeDocument" Target="${main}"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`;
 }
 
-function contentTypes(overrides: [string, string][]): string {
+function contentTypes(overrides: [string, string][], png = false): string {
   const all: [string, string][] = [...overrides, ['/docProps/core.xml', 'application/vnd.openxmlformats-package.core-properties+xml']];
-  return `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${all.map(([p, t]) => `<Override PartName="${p}" ContentType="${t}"/>`).join('')}</Types>`;
+  return `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${png ? '<Default Extension="png" ContentType="image/png"/>' : ''}${all.map(([p, t]) => `<Override PartName="${p}" ContentType="${t}"/>`).join('')}</Types>`;
+}
+
+// ---- figures (charts and diagrams, drawn to PNG by the caller) ----
+
+/** A picture for a ```chart / ```mermaid / ```diagram / ```svg block: PNG bytes and the size it was drawn at (px). */
+export type OfficeFigure = { png: Uint8Array; width: number; height: number; alt: string };
+/** Looks up the drawn picture for a fenced block, if it has one. */
+export type FigureLookup = (lang: string, text: string) => OfficeFigure | undefined;
+
+/** The figure's size in EMU inside maxW×maxH, keeping its shape; a small one is not blown up past 1.25× (96 dpi). */
+function fit(f: OfficeFigure, maxW: number, maxH: number): { cx: number; cy: number } {
+  const scale = Math.min(maxW / f.width, maxH / f.height, 9525 * 1.25);
+  return { cx: Math.round(f.width * scale), cy: Math.round(f.height * scale) };
+}
+
+const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+const PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+
+/** The DrawingML picture element, shared by Word (pic:pic) and PowerPoint (p:pic) with their prefixes. */
+function picture(prefix: 'pic' | 'p', id: number, rel: string, f: OfficeFigure, cx: number, cy: number, x = 0, y = 0): string {
+  const ns = prefix === 'pic' ? ` xmlns:pic="${PIC_NS}"` : '';
+  const locks = prefix === 'p' ? '<a:picLocks noChangeAspect="1"/>' : '';
+  return `<${prefix}:pic${ns}><${prefix}:nvPicPr><${prefix}:cNvPr id="${id}" name="Figure ${id}" descr="${xml(f.alt)}"/><${prefix}:cNvPicPr>${locks}</${prefix}:cNvPicPr>${prefix === 'p' ? '<p:nvPr/>' : ''}</${prefix}:nvPicPr><${prefix}:blipFill><a:blip r:embed="${rel}"/><a:stretch><a:fillRect/></a:stretch></${prefix}:blipFill><${prefix}:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></${prefix}:spPr></${prefix}:pic>`;
 }
 
 // ---- inline Markdown ----
@@ -158,7 +181,8 @@ function wordNumbering(ordered: number[]): string {
 }
 
 /** A Word document from Markdown blocks. */
-export function docx(blocks: Block[], title: string): Uint8Array {
+export function docx(blocks: Block[], title: string, figure?: FigureLookup): Uint8Array {
+  const media: Uint8Array[] = [];
   const links: string[] = [];
   const ordered: number[] = [];
   const linkId = (url: string) => {
@@ -193,10 +217,20 @@ export function docx(blocks: Block[], title: string): Uint8Array {
       case 'hr':
         body += para('', '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="C9D2CC"/></w:pBdr>');
         break;
-      case 'code':
+      case 'code': {
+        // A chart or diagram: its picture, centred, at most the text width and two thirds of the page.
+        const fig = figure?.(b.lang, b.text);
+        if (fig) {
+          const n = media.push(fig.png);
+          const { cx, cy } = fit(fig, TEXT_W * 635, (PAGE_H - 2 * MARGIN) * 635 * 0.66);
+          const drawing = `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="${n}" name="Figure ${n}" descr="${xml(fig.alt)}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="${A_NS}" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="${A_NS}"><a:graphicData uri="${PIC_NS}">${picture('pic', n, `rIdImg${n}`, fig, cx, cy)}</a:graphicData></a:graphic></wp:inline></w:drawing>`;
+          body += para(`<w:r>${drawing}</w:r>`, '<w:keepNext/><w:spacing w:before="120" w:after="200"/><w:jc w:val="center"/>');
+          break;
+        }
         body += (b.text ? b.text.split('\n') : ['']).map(l => para(l ? `<w:r><w:t xml:space="preserve">${xml(l)}</w:t></w:r>` : '', '<w:pStyle w:val="Code"/>')).join('');
         body += para('', '<w:spacing w:after="0"/>');
         break;
+      }
       case 'li': {
         // listNum: the numbering of the ordered list being written, so a new list counts from its own start.
         const isOrdered = /\d/.test(b.marker);
@@ -221,21 +255,23 @@ export function docx(blocks: Block[], title: string): Uint8Array {
       }
     }
   }
-  const document = `${XML_HEAD}<w:document ${W_NS}><w:body>${body || para('')}<w:sectPr><w:pgSz w:w="${PAGE_W}" w:h="${PAGE_H}"/><w:pgMar w:top="${MARGIN}" w:right="${MARGIN}" w:bottom="${MARGIN}" w:left="${MARGIN}" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
-  const rels = `${XML_HEAD}<Relationships xmlns="${REL_NS}"><Relationship Id="rId1" Type="${DOC_REL}/styles" Target="styles.xml"/><Relationship Id="rId2" Type="${DOC_REL}/numbering" Target="numbering.xml"/>${links.map((u, i) => `<Relationship Id="rIdL${i + 1}" Type="${DOC_REL}/hyperlink" Target="${xml(u)}" TargetMode="External"/>`).join('')}</Relationships>`;
-  return zip({
+  const document = `${XML_HEAD}<w:document ${W_NS} xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body || para('')}<w:sectPr><w:pgSz w:w="${PAGE_W}" w:h="${PAGE_H}"/><w:pgMar w:top="${MARGIN}" w:right="${MARGIN}" w:bottom="${MARGIN}" w:left="${MARGIN}" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const rels = `${XML_HEAD}<Relationships xmlns="${REL_NS}"><Relationship Id="rId1" Type="${DOC_REL}/styles" Target="styles.xml"/><Relationship Id="rId2" Type="${DOC_REL}/numbering" Target="numbering.xml"/>${links.map((u, i) => `<Relationship Id="rIdL${i + 1}" Type="${DOC_REL}/hyperlink" Target="${xml(u)}" TargetMode="External"/>`).join('')}${media.map((_, i) => `<Relationship Id="rIdImg${i + 1}" Type="${DOC_REL}/image" Target="media/figure${i + 1}.png"/>`).join('')}</Relationships>`;
+  const files: Record<string, string | Uint8Array> = {
     '[Content_Types].xml': contentTypes([
       ['/word/document.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
       ['/word/styles.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'],
       ['/word/numbering.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml'],
-    ]),
+    ], media.length > 0),
     '_rels/.rels': rootRels('word/document.xml'),
     'docProps/core.xml': coreProps(title),
     'word/document.xml': document,
     'word/styles.xml': WORD_STYLES,
     'word/numbering.xml': wordNumbering(ordered),
     'word/_rels/document.xml.rels': rels,
-  });
+  };
+  media.forEach((png, i) => (files[`word/media/figure${i + 1}.png`] = png));
+  return zip(files);
 }
 
 // ---- PowerPoint ----
@@ -310,11 +346,15 @@ function slideTable(id: number, b: Extract<Block, { t: 'table' }>, x: number, y:
   return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${colW * cols}" cy="${rowH * rows.length}"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>${Array.from({ length: cols }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>${rows.map((r, i) => `<a:tr h="${rowH}">${Array.from({ length: cols }, (_, j) => cell(r[j] ?? '', j, i === 0, i > 0 && i % 2 === 0)).join('')}</a:tr>`).join('')}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
 }
 
-function slideXml(s: Slide, index: number, total: number): string {
+function slideXml(s: Slide, index: number, total: number, figure?: FigureLookup): { xml: string; png?: Uint8Array } {
+  // The slide's first chart or diagram becomes a picture; its text and tables move to the left beside it.
+  const figBlock = figure ? s.blocks.find((b): b is Extract<Block, { t: 'code' }> => b.t === 'code' && !!figure(b.lang, b.text)) : undefined;
+  const fig = figBlock ? figure!(figBlock.lang, figBlock.text) : undefined;
+  if (figBlock) s = { ...s, blocks: s.blocks.filter(b => b !== figBlock) };
   const margin = Math.round(0.6 * EMU_IN);
   const width = SLIDE_W - 2 * margin;
   // A first slide with only a title and a line or two is the title slide.
-  const cover = index === 0 && s.blocks.length <= 2 && s.blocks.every(b => b.t === 'p' || b.t === 'h');
+  const cover = index === 0 && !fig && s.blocks.length <= 2 && s.blocks.every(b => b.t === 'p' || b.t === 'h');
   let shapes = '';
   let bg = 'FFFFFF';
   if (cover) {
@@ -341,27 +381,36 @@ function slideXml(s: Slide, index: number, total: number): string {
     });
     const top = titleY + titleH + Math.round(0.3 * EMU_IN);
     const bottom = SLIDE_H - Math.round(0.6 * EMU_IN);
+    const gap = Math.round(0.35 * EMU_IN);
+    const left = fig ? (paras.length || table ? Math.round(width * 0.42) : 0) : width;
     if (table) {
       const textH = paras.length ? Math.min(Math.round(paras.length * size * 1.6 * 12700), Math.round((bottom - top) * 0.4)) : 0;
-      if (paras.length) shapes += textBox(4, 'Body', margin, top, width, textH, paras);
-      shapes += slideTable(5, table, margin, top + textH + (textH ? 182880 : 0), width, bottom - top - textH);
-    } else shapes += textBox(4, 'Body', margin, top, width, bottom - top, paras);
+      if (paras.length) shapes += textBox(4, 'Body', margin, top, left, textH, paras);
+      shapes += slideTable(5, table, margin, top + textH + (textH ? 182880 : 0), left, bottom - top - textH);
+    } else if (left) shapes += textBox(4, 'Body', margin, top, left, bottom - top, paras);
+    if (fig) {
+      const boxX = margin + (left ? left + gap : 0);
+      const boxW = width - (left ? left + gap : 0);
+      const { cx, cy } = fit(fig, boxW, bottom - top);
+      shapes += picture('p', 7, 'rId2', fig, cx, cy, Math.round(boxX + (boxW - cx) / 2), Math.round(top + (bottom - top - cy) / 2));
+    }
     shapes += textBox(6, 'Slide number', SLIDE_W - margin - EMU_IN, SLIDE_H - Math.round(0.45 * EMU_IN), EMU_IN, Math.round(0.3 * EMU_IN), [{ runs: [{ text: `${index + 1} / ${total}` }], size: 10, color: '8A948E', align: 'r' }], 'b');
   }
-  return `${XML_HEAD}<p:sld ${P_NS}><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="${bg}"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree>${GROUP}${shapes}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+  return { xml: `${XML_HEAD}<p:sld ${P_NS}><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="${bg}"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree>${GROUP}${shapes}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`, png: cover ? undefined : fig?.png };
 }
 
 /** A 16:9 PowerPoint deck. */
-export function pptx(slides: Slide[], title: string): Uint8Array {
+export function pptx(slides: Slide[], title: string, figure?: FigureLookup): Uint8Array {
   const list = slides.length ? slides : [{ title, blocks: [] }];
-  const files: Record<string, string> = {
+  const built = list.map((s, i) => slideXml(s, i, list.length, figure));
+  const files: Record<string, string | Uint8Array> = {
     '[Content_Types].xml': contentTypes([
       ['/ppt/presentation.xml', 'application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml'],
       ['/ppt/slideMasters/slideMaster1.xml', 'application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml'],
       ['/ppt/slideLayouts/slideLayout1.xml', 'application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml'],
       ['/ppt/theme/theme1.xml', 'application/vnd.openxmlformats-officedocument.theme+xml'],
       ...list.map((_, i): [string, string] => [`/ppt/slides/slide${i + 1}.xml`, 'application/vnd.openxmlformats-officedocument.presentationml.slide+xml']),
-    ]),
+    ], built.some(b => b.png)),
     '_rels/.rels': rootRels('ppt/presentation.xml'),
     'docProps/core.xml': coreProps(title),
     'ppt/presentation.xml': `${XML_HEAD}<p:presentation ${P_NS} saveSubsetFonts="1"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>${list.map((_, i) => `<p:sldId id="${256 + i}" r:id="rId${i + 3}"/>`).join('')}</p:sldIdLst><p:sldSz cx="${SLIDE_W}" cy="${SLIDE_H}"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>`,
@@ -372,9 +421,11 @@ export function pptx(slides: Slide[], title: string): Uint8Array {
     'ppt/slideLayouts/_rels/slideLayout1.xml.rels': `${XML_HEAD}<Relationships xmlns="${REL_NS}"><Relationship Id="rId1" Type="${DOC_REL}/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>`,
     'ppt/theme/theme1.xml': THEME,
   };
-  list.forEach((s, i) => {
-    files[`ppt/slides/slide${i + 1}.xml`] = slideXml(s, i, list.length);
-    files[`ppt/slides/_rels/slide${i + 1}.xml.rels`] = `${XML_HEAD}<Relationships xmlns="${REL_NS}"><Relationship Id="rId1" Type="${DOC_REL}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>`;
+  built.forEach((b, i) => {
+    files[`ppt/slides/slide${i + 1}.xml`] = b.xml;
+    const image = b.png ? `<Relationship Id="rId2" Type="${DOC_REL}/image" Target="../media/figure${i + 1}.png"/>` : '';
+    files[`ppt/slides/_rels/slide${i + 1}.xml.rels`] = `${XML_HEAD}<Relationships xmlns="${REL_NS}"><Relationship Id="rId1" Type="${DOC_REL}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>${image}</Relationships>`;
+    if (b.png) files[`ppt/media/figure${i + 1}.png`] = b.png;
   });
   return zip(files);
 }

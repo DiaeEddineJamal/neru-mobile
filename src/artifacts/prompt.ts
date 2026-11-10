@@ -28,7 +28,17 @@ You CAN create real files. This app turns these artifacts into genuine .docx, .p
 - PDF: type="pdf". Same Markdown as Word.
 - PowerPoint: type="pptx". Markdown slides separated by a line holding only ---. Each slide starts with "# Slide title", then 3–6 short bullet points (indent sub-points by 2 spaces), a short paragraph or a Markdown table. The first slide is the title slide: "# Title" and one subtitle line. Aim for 6–12 slides unless asked otherwise.
 - Excel: type="xlsx". One Markdown table per sheet, each under a "## Sheet name" heading; the first row is the header. Plain numbers (no units inside number cells). A cell starting with = is a formula in Excel syntax with A1 references, counting the header as row 1 (so the first data row is row 2), e.g. =SUM(B2:B10) or =B2*C2.
-Write real, finished content (no "lorem ipsum", no "[add text here]" unless the user must fill in personal details). After the artifact, say in one sentence that the file is ready to open or share from the artifact.`;
+Write real, finished content (no "lorem ipsum", no "[add text here]" unless the user must fill in personal details). After the artifact, say in one sentence that the file is ready to open or share from the artifact.
+
+### Charts and diagrams inside files
+Word, PDF and PowerPoint artifacts can hold charts and diagrams: put a fenced block in their Markdown where the figure goes, and the app draws it as a picture in the file. Add them whenever they make the document clearer (numbers to compare, trends, shares of a whole, a process, an architecture, a timeline), and always when the user asks for charts, graphs, diagrams or visuals.
+- Chart: a \`\`\`chart block with one valid JSON object: "type" ("bar", "line", "area", "pie", "donut" or "scatter"), "title", "labels" (the categories), "series" ([{"name": "...", "data": [one number per label]}]); optional "x", "y" (axis titles), "unit" ("%", "$"…), "stacked": true. Example:
+\`\`\`chart
+{"type": "bar", "title": "Accuracy by model", "labels": ["Logistic", "Random forest", "SVM"], "y": "Accuracy", "unit": "%", "series": [{"name": "Accuracy", "data": [82, 91, 88]}]}
+\`\`\`
+- Diagram: a \`\`\`mermaid block. flowchart (TD or LR), sequenceDiagram, timeline and pie draw best and offline; gantt, classDiagram, erDiagram, stateDiagram and mindmap also work when the phone is online. Keep labels short, under about 15 nodes.
+- A slide holds one figure: put it on its own slide (with a title), or beside 2–4 short bullets.
+- Put a sentence before or after each figure saying what it shows. Use real numbers from the conversation or well-established facts; never invent data.`;
 
 const LOCAL = `
 Long documents, full code files, HTML pages, SVG images and mermaid diagrams go in an artifact, not in a code block:
@@ -37,7 +47,8 @@ Long documents, full code files, HTML pages, SVG images and mermaid diagrams go 
 <html>…</html>
 </artifact>
 type is html, svg, markdown, code or mermaid. To change it later, write it again with the same id. Short answers: no artifact.
-You can make real files: the app converts these artifacts. Word: type="docx" and PDF: type="pdf" (Markdown). PowerPoint: type="pptx" (slides split by a line ---, each starting "# Title" then bullets). Excel: type="xlsx" (a Markdown table). Never say you cannot create files.`;
+You can make real files: the app converts these artifacts. Word: type="docx" and PDF: type="pdf" (Markdown). PowerPoint: type="pptx" (slides split by a line ---, each starting "# Title" then bullets). Excel: type="xlsx" (a Markdown table). Never say you cannot create files.
+Inside Word, PDF and PowerPoint, a \`\`\`chart block (JSON: {"type": "bar", "title": "...", "labels": [...], "series": [{"name": "...", "data": [...]}]}) or a \`\`\`mermaid flowchart becomes a picture.`;
 
 /** Instructions that teach a model how to write artifacts; shorter for on-device models. */
 export function artifactPrompt(local: boolean): string {

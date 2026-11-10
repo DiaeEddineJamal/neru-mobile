@@ -47,11 +47,40 @@ export function rememberNoTools(providerId: string, model: string) {
 const LOCAL_TOOLS_CHARS = 2100;
 export const CLOUD_TOOLS_CHARS = 24000;
 
-/** A named app gets the small context budget instead of unrelated connectors crowding it out. */
+// Everyday words for what a connector holds, so "check my email" finds Gmail as surely as "check my Gmail" does.
+const TOPICS: [RegExp, RegExp][] = [
+  [/gmail|mail|outlook/, /\b(e-?mails?|mails?|inbox|gmail|messages?|unread|drafts?|send|sent|reply|replies|newsletters?)\b/],
+  [/calendar/, /\b(calendars?|meetings?|events?|agenda|schedules?|appointments?|today|tomorrow|this week|next week|free time|busy)\b/],
+  [/drive|docs|sheets/, /\b(drive|files?|documents?|docs?|sheets?|spreadsheets?|slides|folders?|pdfs?)\b/],
+  [/notion/, /\b(notion|pages?|notes?|wiki|database)\b/],
+  [/github/, /\b(github|repos?|repository|issues?|pull requests?|prs?)\b/],
+  [/slack/, /\b(slack|channels?|dms?)\b/],
+];
+
+/** A named app gets the small context budget instead of unrelated connectors crowding it out: by its name, or by
+ * what it holds ("my email" is Gmail, "my meetings" the calendar). */
 export function localToolsForTask(tools: ChatTool[], task: string): ChatTool[] {
   const request = task.toLowerCase();
-  const named = tools.filter(tool => tool.label.toLowerCase().split(/[^a-z0-9]+/).some(word => word.length >= 4 && word !== 'google' && new RegExp(`\\b${word}\\b`).test(request)));
+  const named = tools.filter(tool => {
+    const label = tool.label.toLowerCase();
+    if (label.split(/[^a-z0-9]+/).some(word => word.length >= 4 && word !== 'google' && new RegExp(`\\b${word}\\b`).test(request))) return true;
+    return TOPICS.some(([app, words]) => app.test(label) && words.test(request));
+  });
   return named.length ? named : tools;
+}
+
+/**
+ * Tells the model which of the user's apps are really connected. Without it many models (phone models and open
+ * cloud ones most of all) answer from habit that they "cannot access your email" even with the tools in hand.
+ */
+export function connectedAppsPrompt(tools: ChatTool[]): string {
+  const apps = [...new Set(tools.map(t => t.label))];
+  if (!apps.length) return '';
+  return [
+    `## Connected apps\nThe user has connected these apps to Neru, and you have live access to them through tools: ${apps.join(', ')}.`,
+    'When a request involves them (their email, inbox, calendar, events, files, documents, pages…), call the matching tool and answer from what it returns. Never say you cannot access their email, calendar or files, that you have no MCP or connector access, or that you are only a language model: you do have access here.',
+    'Search first to find IDs, then read the item. Tools that change something (drafts, events, labels, new documents) ask the user to approve in the app, so call them when asked. If a tool fails, say what failed instead of guessing.',
+  ].join('\n');
 }
 
 /** The tools in a line each, for the on-device system prompt. The list stays the same from turn to turn, so the

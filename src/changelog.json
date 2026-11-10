@@ -1,5 +1,28 @@
 [
   {
+    "version": "0.18.0",
+    "date": "2026-11-10",
+    "title": "Charts in your files",
+    "summary": "Word documents, PDFs and presentations can now hold charts and diagrams, documents fit the screen, and Gmail and other connected apps work with every model.",
+    "items": [
+      {
+        "icon": "chart",
+        "title": "Charts and diagrams in files",
+        "text": "Ask for a report or a deck with charts, graphs or diagrams and they are drawn right into the Word, PDF or PowerPoint file: bar, line, area, pie, donut and scatter charts, flowcharts, sequence diagrams and timelines. Gantt, class, ER and state diagrams work too when you are online. New skills /chart and /diagram make them on request."
+      },
+      {
+        "icon": "doc",
+        "title": "Documents that fit",
+        "text": "Wide tables no longer spill off the page: they scroll inside it, and a document can no longer be zoomed out past its own width."
+      },
+      {
+        "icon": "connectors",
+        "title": "Gmail and connected apps",
+        "text": "Models now know which apps you have connected and use them instead of saying they can’t reach your email, calendar or files. Phone models also find the right tools when you say “my email” or “my meetings” without naming the app."
+      }
+    ]
+  },
+  {
     "version": "0.17.0",
     "date": "2026-11-10",
     "title": "Real files",

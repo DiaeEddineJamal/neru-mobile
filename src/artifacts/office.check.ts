@@ -2,11 +2,11 @@
 // Builds a sample Word, PowerPoint and Excel file, checks the zip and every XML part, and with an out dir writes the
 // files there so they can be opened in Office.
 import assert from 'node:assert';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { parse } from '../components/markdown/parse.ts';
-import { docx, parseCsv, plain, pptx, runs, sheetsFrom, splitSlides, xlsx } from './office.ts';
+import { docx, parseCsv, plain, pptx, runs, sheetsFrom, splitSlides, xlsx, type FigureLookup } from './office.ts';
 
 let passed = 0;
 function check(name: string, fn: () => void) {
@@ -128,9 +128,17 @@ const SHEET = `## Budget
 |---|---|
 | A | 12.5% |`;
 
+// Figures: a ```chart block becomes a picture. The check uses a real PNG when one is passed (argv[3]), else a 1×1.
+const PNG = process.argv[3] ? new Uint8Array(readFileSync(process.argv[3])) : Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg=='), c => c.charCodeAt(0));
+const figure: FigureLookup = lang => (lang === 'chart' ? { png: PNG, width: 640, height: 330, alt: 'Chart: Model accuracy' } : undefined);
+const FIG_DOC = `# Report\n\nAccuracy by model:\n\n\`\`\`chart\n{"type":"bar"}\n\`\`\`\n\nThe end.`;
+const FIG_DECK = `# Results\nQ3 review\n\n---\n\n# Accuracy\n- Forests lead\n- SVM close behind\n\n\`\`\`chart\n{"type":"bar"}\n\`\`\`\n\n---\n\n# Chart only\n\`\`\`chart\n{"type":"bar"}\n\`\`\``;
+
 const files = {
   'sample.docx': docx(parse(DOC), 'Quarterly report'),
   'sample.pptx': pptx(splitSlides(DECK, parse), 'Neru launch'),
+  'figures.docx': docx(parse(FIG_DOC), 'Report', figure),
+  'figures.pptx': pptx(splitSlides(FIG_DECK, parse), 'Results', figure),
   'sample.xlsx': xlsx(sheetsFrom(SHEET, parse), 'Budget'),
   'csv.xlsx': xlsx(sheetsFrom('Name,Score\nAda,"9,5"\nBob,7', parse), 'Scores'),
 };
@@ -152,9 +160,20 @@ for (const [name, bytes] of Object.entries(files)) {
   check(name, () => {
     const parts = unzip(bytes);
     assert.ok(parts['[Content_Types].xml'] && parts['_rels/.rels']);
-    for (const [part, src] of Object.entries(parts)) wellFormed(`${name}/${part}`, src);
+    for (const [part, src] of Object.entries(parts)) if (/\.(xml|rels)$/.test(part)) wellFormed(`${name}/${part}`, src);
   });
 }
+
+check('figures', () => {
+  const doc = unzip(files['figures.docx']);
+  assert.ok(doc['word/media/figure1.png'] !== undefined, 'docx picture');
+  assert.ok(doc['word/document.xml'].includes('r:embed="rIdImg1"') && doc['word/_rels/document.xml.rels'].includes('media/figure1.png'));
+  assert.ok(doc['[Content_Types].xml'].includes('Extension="png"'));
+  const deck = unzip(files['figures.pptx']);
+  assert.ok(deck['ppt/media/figure2.png'] !== undefined && deck['ppt/media/figure3.png'] !== undefined, 'one picture per figure slide');
+  assert.ok(deck['ppt/slides/slide2.xml'].includes('<p:pic>') && deck['ppt/slides/slide2.xml'].includes('Forests lead'));
+  assert.ok(!deck['ppt/slides/slide1.xml'].includes('<p:pic>'));
+});
 
 check('xlsx cells', () => {
   const sheet = unzip(files['sample.xlsx'])['xl/worksheets/sheet1.xml'];

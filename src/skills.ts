@@ -18,6 +18,7 @@ export type Skill = {
   source: 'built-in' | 'mine';
 };
 
+const FIGURE_RULES = 'Add charts and diagrams where they help (and always when asked): a ```chart block (JSON with type, title, labels and series) or a ```mermaid block (flowchart, sequenceDiagram, timeline, gantt, classDiagram, erDiagram) placed inside the artifact\'s Markdown becomes a picture in the file. Use real numbers only.';
 const FILE_RULES = 'The app turns the artifact into the real file that the user opens and shares from the artifact page, so never say you cannot create files and never produce an empty or placeholder file. Write complete, finished content in the user\'s language; use [brackets] only for personal details you do not know. If key facts are missing, make sensible assumptions and state them in one line before the artifact. After it, say in one sentence that the file is ready.';
 
 /** The built-in set, with titles and descriptions in the current language. Instructions stay in English: the model
@@ -76,25 +77,38 @@ export const builtInSkills = (): Skill[] => ([
     slug: 'word-document',
     title: t('Word document'),
     description: t('Writes a complete Word document (.docx) you can open, edit and share: reports, letters, CVs, contracts, plans.'),
-    instructions: `Create the document the user describes as a Word file: one artifact with type="docx" whose content is Markdown (start with "# Title", then ## sections, paragraphs, lists, tables, bold and italic). ${FILE_RULES}`,
+    instructions: `Create the document the user describes as a Word file: one artifact with type="docx" whose content is Markdown (start with "# Title", then ## sections, paragraphs, lists, tables, bold and italic). ${FIGURE_RULES} ${FILE_RULES}`,
   },
   {
     slug: 'pdf',
     title: t('PDF'),
     description: t('Writes a finished document and gives it to you as a PDF, ready to print or send.'),
-    instructions: `Create the document the user describes as a PDF: one artifact with type="pdf" whose content is Markdown (start with "# Title", then ## sections, paragraphs, lists, tables). ${FILE_RULES}`,
+    instructions: `Create the document the user describes as a PDF: one artifact with type="pdf" whose content is Markdown (start with "# Title", then ## sections, paragraphs, lists, tables). ${FIGURE_RULES} ${FILE_RULES}`,
   },
   {
     slug: 'presentation',
     title: t('Presentation'),
     description: t('Builds a PowerPoint deck (.pptx) on any topic: a title slide, then clear slides with short points and tables.'),
-    instructions: `Create a presentation as a PowerPoint file: one artifact with type="pptx". Its content is Markdown slides separated by a line holding only ---. The first slide is "# Title" and one subtitle line. Every other slide starts with "# Slide title", then 3 to 6 short bullet points (at most about 12 words each; indent sub-points by 2 spaces), or a short paragraph, or a small Markdown table. Make 6 to 12 slides unless the user asks for another number, with a logical flow and a closing slide (summary or next steps). ${FILE_RULES}`,
+    instructions: `Create a presentation as a PowerPoint file: one artifact with type="pptx". Its content is Markdown slides separated by a line holding only ---. The first slide is "# Title" and one subtitle line. Every other slide starts with "# Slide title", then 3 to 6 short bullet points (at most about 12 words each; indent sub-points by 2 spaces), or a short paragraph, or a small Markdown table. Make 6 to 12 slides unless the user asks for another number, with a logical flow and a closing slide (summary or next steps). Give numbers a chart slide and processes a diagram slide. ${FIGURE_RULES} ${FILE_RULES}`,
   },
   {
     slug: 'spreadsheet',
     title: t('Spreadsheet'),
     description: t('Builds an Excel workbook (.xlsx) with tables and working formulas: budgets, trackers, schedules, lists.'),
     instructions: `Create a spreadsheet as an Excel file: one artifact with type="xlsx". Write one Markdown table per sheet, each under a "## Sheet name" heading; the first row is the header. Put plain numbers in number cells (units in the header, not the cell). Use Excel formulas where totals or calculations belong: a cell starting with = such as =SUM(B2:B10) or =B2*C2, with A1 references where the header is row 1 and the first data row is row 2. ${FILE_RULES}`,
+  },
+  // Charts and diagrams, in the chat or inside a file.
+  {
+    slug: 'chart',
+    title: t('Chart'),
+    description: t('Turns numbers into a clear chart: bar, line, area, pie, donut or scatter. Ask for it in a document or deck to get it there.'),
+    instructions: `Make the chart the user asks for from their numbers (or well-established figures; never invent data). Pick the type that fits: bar to compare, line or area for change over time, pie or donut for parts of a whole (at most 8 slices), scatter for two measures. Write it as a \`\`\`chart block with one valid JSON object: {"type": "bar", "title": "...", "labels": [...], "series": [{"name": "...", "data": [...]}]}, optional "x", "y", "unit", "stacked". If the user wants it in a Word, PDF or PowerPoint file, put the block inside that file's artifact. Then add one or two sentences on what the chart shows.`,
+  },
+  {
+    slug: 'diagram',
+    title: t('Diagram'),
+    description: t('Draws a flowchart, sequence diagram, timeline, Gantt chart, class or ER diagram with Mermaid. Ask for it in a document or deck to get it there.'),
+    instructions: `Draw the diagram the user describes as a \`\`\`mermaid block. Choose the type that fits: flowchart TD or LR for processes and decisions, sequenceDiagram for exchanges between people or systems, timeline for dates, gantt for schedules, classDiagram or erDiagram for structures and data, stateDiagram-v2 for states, mindmap for ideas. Keep labels short and stay under about 15 nodes; split a big system into two diagrams. Use plain node ids (A, B, C) with labels in brackets. If the user wants it in a Word, PDF or PowerPoint file, put the block inside that file's artifact. Then explain the diagram in two or three sentences.`,
   },
 ] as Omit<Skill, 'source'>[]).map(sk => ({ ...sk, source: 'built-in' as const }));
 

@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { IconButton } from '@/components/Icon';
+import { Markdown } from '@/components/Markdown';
 import { t } from '@/i18n';
 import { updateProjectMemory, useMemory } from '@/memory';
 import { setProjectArchived, updateProject, useProject } from '@/projects';
@@ -17,7 +18,7 @@ import { notice } from '@/ui/confirm';
 import { Card, EmptyState, Field, Group, PageScroll, PillButton, Row, SectionLabel } from '@/ui/page';
 
 /** A card that shows a text, and turns into a field with Save and Cancel while editing. */
-function EditableCard({ value, placeholder, hint, onSave, footer }: { value: string; placeholder: string; hint?: string; onSave: (text: string) => void; footer?: ReactNode }) {
+function EditableCard({ value, placeholder, hint, onSave, footer, markdown = false }: { value: string; placeholder: string; hint?: string; onSave: (text: string) => void; footer?: ReactNode; /** Show the text rendered (memory is Markdown). */ markdown?: boolean }) {
   const c = useColors();
   const [draft, setDraft] = useState<string | null>(null);
   if (draft !== null)
@@ -33,7 +34,13 @@ function EditableCard({ value, placeholder, hint, onSave, footer }: { value: str
   return (
     <Card onPress={() => setDraft(value)}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-        <Text style={{ flex: 1, fontFamily: font.sans, fontSize: fs.base, lineHeight: 23, color: value ? c.text : c.muted }}>{value || placeholder}</Text>
+        {markdown && value ? (
+          <View style={{ flex: 1 }}>
+            <Markdown text={value} />
+          </View>
+        ) : (
+          <Text style={{ flex: 1, fontFamily: font.sans, fontSize: fs.base, lineHeight: 23, color: value ? c.text : c.muted }}>{value || placeholder}</Text>
+        )}
         <IconButton name="pencil" label={t('Edit')} color={c.secondary} size={20} onPress={() => setDraft(value)} />
       </View>
       {hint ? <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.muted }}>{hint}</Text> : null}
@@ -91,6 +98,7 @@ export default function ProjectPage() {
         <SectionLabel>{t('Project memory')}</SectionLabel>
         <EditableCard
           value={project.memory ?? ''}
+          markdown
           placeholder={t('Nothing remembered yet. Neru learns from the chats in this project.')}
           hint={t('Last updated: {when}', { when: formatWhen(project.memoryUpdatedAt ?? 0) })}
           onSave={memory => updateProject(project.id, { memory, memoryUpdatedAt: Date.now() }, false)}

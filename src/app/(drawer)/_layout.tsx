@@ -16,6 +16,7 @@ import { WhatsNew } from '@/components/WhatsNew';
 import { t } from '@/i18n';
 import { setDraftChat } from '@/store';
 import { font, useColors } from '@/theme';
+import { setHeaderRightWidth } from '@/ui/header-width';
 import { EASE_DRAWER } from '@/ui/motion';
 import { TourTarget } from '@/ui/tour';
 
@@ -132,7 +133,7 @@ export default function DrawerLayout() {
               options={{
                 // The model pill sits in the composer of an empty chat; once a chat has started it lives up here.
                 headerRight: () => (
-                  <View style={s.right}>
+                  <View style={s.right} onLayout={e => setHeaderRightWidth(e.nativeEvent.layout.width + 4)}>
                     <TourTarget name="model"><ModelButton compact /></TourTarget>
                     <TourTarget name="compose"><IconButton name="compose" label={t('New chat')} color={c.text} onPress={newChat} /></TourTarget>
                   </View>

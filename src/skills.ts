@@ -18,6 +18,8 @@ export type Skill = {
   source: 'built-in' | 'mine';
 };
 
+const FILE_RULES = 'The app turns the artifact into the real file that the user opens and shares from the artifact page, so never say you cannot create files and never produce an empty or placeholder file. Write complete, finished content in the user\'s language; use [brackets] only for personal details you do not know. If key facts are missing, make sensible assumptions and state them in one line before the artifact. After it, say in one sentence that the file is ready.';
+
 /** The built-in set, with titles and descriptions in the current language. Instructions stay in English: the model
  * reads them, and it answers in the user's language anyway. */
 export const builtInSkills = (): Skill[] => ([
@@ -68,6 +70,31 @@ export const builtInSkills = (): Skill[] => ([
     title: t('Study notes'),
     description: t('Turns a topic or course material into structured study notes with key terms, examples and quiz questions.'),
     instructions: 'Make study notes from the user\'s topic or material. Use headings, short bullet points, bolded key terms with one-line definitions, a worked example where it helps, and a short "common mistakes" list. End with 5 quiz questions, with the answers listed separately after them.',
+  },
+  // Files. The app builds the real file from the artifact (artifacts/office.ts); these make sure the model writes one.
+  {
+    slug: 'word-document',
+    title: t('Word document'),
+    description: t('Writes a complete Word document (.docx) you can open, edit and share: reports, letters, CVs, contracts, plans.'),
+    instructions: `Create the document the user describes as a Word file: one artifact with type="docx" whose content is Markdown (start with "# Title", then ## sections, paragraphs, lists, tables, bold and italic). ${FILE_RULES}`,
+  },
+  {
+    slug: 'pdf',
+    title: t('PDF'),
+    description: t('Writes a finished document and gives it to you as a PDF, ready to print or send.'),
+    instructions: `Create the document the user describes as a PDF: one artifact with type="pdf" whose content is Markdown (start with "# Title", then ## sections, paragraphs, lists, tables). ${FILE_RULES}`,
+  },
+  {
+    slug: 'presentation',
+    title: t('Presentation'),
+    description: t('Builds a PowerPoint deck (.pptx) on any topic: a title slide, then clear slides with short points and tables.'),
+    instructions: `Create a presentation as a PowerPoint file: one artifact with type="pptx". Its content is Markdown slides separated by a line holding only ---. The first slide is "# Title" and one subtitle line. Every other slide starts with "# Slide title", then 3 to 6 short bullet points (at most about 12 words each; indent sub-points by 2 spaces), or a short paragraph, or a small Markdown table. Make 6 to 12 slides unless the user asks for another number, with a logical flow and a closing slide (summary or next steps). ${FILE_RULES}`,
+  },
+  {
+    slug: 'spreadsheet',
+    title: t('Spreadsheet'),
+    description: t('Builds an Excel workbook (.xlsx) with tables and working formulas: budgets, trackers, schedules, lists.'),
+    instructions: `Create a spreadsheet as an Excel file: one artifact with type="xlsx". Write one Markdown table per sheet, each under a "## Sheet name" heading; the first row is the header. Put plain numbers in number cells (units in the header, not the cell). Use Excel formulas where totals or calculations belong: a cell starting with = such as =SUM(B2:B10) or =B2*C2, with A1 references where the header is row 1 and the first data row is row 2. ${FILE_RULES}`,
   },
 ] as Omit<Skill, 'source'>[]).map(sk => ({ ...sk, source: 'built-in' as const }));
 

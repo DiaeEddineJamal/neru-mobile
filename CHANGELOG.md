@@ -1,5 +1,15 @@
 # Neru mobile changelog
 
+## 0.17.0 · 2026-11-10
+
+**Real files.** Ask for a Word document, a PDF, a presentation or a spreadsheet and get the real file, made right on your phone. Artifacts now open while they are still being written.
+
+- **Word, PDF, PowerPoint and Excel.** Models on your phone and in the cloud now make real .docx, .pdf, .pptx and .xlsx files instead of saying they can’t. Documents show on a page, decks as slides and spreadsheets as a grid, with working Excel formulas. New skills /word-document, /pdf, /presentation and /spreadsheet make them on request.
+- **Watch artifacts being written.** Tap an artifact while the reply is still coming and it opens right away, filling in live and following the newest lines. Web pages and diagrams show their code as it arrives, then render when done.
+- **Share in the format you need.** Share opens a choice of formats: PDF, Word, PowerPoint, Excel, a web page or the source as written. File artifacts get a one-tap button for their file at the top.
+- **Kilo Gateway.** Add a Kilo Gateway key to use its free models. Only models ending in :free count as free, so nothing is billed by surprise.
+- **Fixes.** Memory and project memory show as formatted text instead of # and ** marks, and a long chat title no longer hides its arrow under the model button.
+
 ## 0.16.0 · 2026-11-09
 
 **A fresh look.** A full-screen sidebar, calmer dark mode, smoother replies from phone models, and new places for your memory, projects, artifacts and skills.

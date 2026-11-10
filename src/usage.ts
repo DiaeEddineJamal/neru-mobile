@@ -32,9 +32,9 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach(l => l());
 
 const FREE_HOSTS = new Set(['on-device', 'ollama', 'local']);
-/** Free keys, on-device models and local servers; OpenRouter counts only for its free models. */
+/** Free keys, on-device models and local servers; OpenRouter and Kilo count only for their free models. */
 export const isFree = (providerId: string, model: string) =>
-  FREE_HOSTS.has(providerId) || (providerId === 'openrouter' ? /(:free|-free)$/i.test(model) || model === 'openrouter/free' : !!providerPresets.find(p => p.id === providerId)?.freeLimit);
+  FREE_HOSTS.has(providerId) || (providerId === 'openrouter' || providerId === 'kilo' ? /(:free|-free)$/i.test(model) || model === 'openrouter/free' : !!providerPresets.find(p => p.id === providerId)?.freeLimit);
 
 /** Tokens as a provider counts them, roughly, for replies whose provider reports none. */
 export const estimateTokens = (text: string) => Math.ceil(text.length / 4);

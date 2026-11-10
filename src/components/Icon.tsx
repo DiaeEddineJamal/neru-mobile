@@ -1,9 +1,9 @@
 import {
   Archive, ArrowLeft, ArrowUp, AudioLines, Bell, Blocks, Bookmark, Brain, Camera, ChartColumn, Check, ChevronDown, ChevronLeft, ChevronRight,
   CircleCheck, CircleExclamationPoint, CircleUser, CircleX, Clock, ClockFading, Cloud, Code, Compass, Copy, Cpu, DollarSign, Download, Ellipsis,
-  EllipsisVertical, ExternalLink, EyeOff, FastForward, FileCode, FileSearch, FileText, FileUp, FlaskConical, Flag, Folder, Gauge, Ghost, Globe,
+  EllipsisVertical, ExternalLink, EyeOff, FastForward, FileCode, FileSearch, FileSpreadsheet, FileText, FileType, FileUp, FlaskConical, Flag, Folder, Gauge, Ghost, Globe,
   Hash, Image, ImagePlus, Inbox, Info, KeyRound, Laptop, Layers2, ListChecks, ListFilter, Lock, LogOut, Menu, MessageCircle, Mic, Minus,
-  Monitor, Moon, Palette, Paperclip, Pencil, PiggyBank, Pin, Plus, RotateCw, ScanQrCode, ScrollText, Search, Settings, Share, ShieldCheck,
+  Monitor, Moon, Palette, Paperclip, Pencil, PiggyBank, Pin, Plus, Presentation, RotateCw, ScanQrCode, ScrollText, Search, Settings, Share, ShieldCheck,
   SlidersHorizontal, Smartphone, Sparkles, Square, SquarePen, SquareStack, Star, Sun, Terminal, Trash, TriangleExclamationPoint, Upload,
   User, Users, UsersRound, Vibrate, Volume2, WandSparkles, Wrench, X, Zap, type LucideIcon,
 } from 'lucide-react-native';
@@ -109,6 +109,10 @@ const names = {
   bookmark: Bookmark,
   hash: Hash,
   logout: LogOut,
+  // Office files.
+  slides: Presentation,
+  sheet: FileSpreadsheet,
+  word: FileType,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof names;

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Neru",
     "slug": "neru",
-    "version": "0.16.0",
+    "version": "0.17.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "neru",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "dev.neru.mobile",
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "android": {
       "package": "dev.neru.mobile",
@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 10
+      "versionCode": 11
     },
     "web": {
       "output": "static",

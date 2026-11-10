@@ -3,7 +3,10 @@ import type { ArtifactKind, Artifact } from '@/artifacts/parse';
 import type { IconName } from '@/components/Icon';
 import { currentLang, t } from '@/i18n';
 
-export const KIND_ICON: Record<ArtifactKind, IconName> = { html: 'desktop', svg: 'photo', markdown: 'doc', code: 'fileCode', mermaid: 'chart' };
+export const KIND_ICON: Record<ArtifactKind, IconName> = { html: 'desktop', svg: 'photo', markdown: 'doc', code: 'fileCode', mermaid: 'chart', slides: 'slides', sheet: 'sheet' };
+
+/** The icon for one artifact: a Word document shows Word's, a PDF the document one. */
+export const iconFor = (a: Artifact): IconName => (a.format === 'docx' ? 'word' : KIND_ICON[a.kind]);
 
 export function kindLabel(kind: ArtifactKind): string {
   switch (kind) {
@@ -12,7 +15,16 @@ export function kindLabel(kind: ArtifactKind): string {
     case 'markdown': return t('Document');
     case 'code': return t('Code');
     case 'mermaid': return t('Diagram');
+    case 'slides': return t('Presentation');
+    case 'sheet': return t('Spreadsheet');
   }
+}
+
+/** What one artifact is, as a file type when it is meant to be one: "Word document", "PDF", "Presentation"… */
+export function typeLabel(a: Artifact): string {
+  if (a.format === 'docx') return t('Word document');
+  if (a.format === 'pdf') return t('PDF');
+  return kindLabel(a.kind);
 }
 
 export function kindsLabel(kind: ArtifactKind): string {
@@ -22,6 +34,8 @@ export function kindsLabel(kind: ArtifactKind): string {
     case 'markdown': return t('Documents');
     case 'code': return t('Code');
     case 'mermaid': return t('Diagrams');
+    case 'slides': return t('Presentations');
+    case 'sheet': return t('Spreadsheets');
   }
 }
 
@@ -40,7 +54,9 @@ export function fileFor(a: Artifact): { name: string; mime: string } {
   switch (a.kind) {
     case 'html': return { name: `${base}.html`, mime: 'text/html' };
     case 'svg': return { name: `${base}.svg`, mime: 'image/svg+xml' };
-    case 'markdown': return { name: `${base}.md`, mime: 'text/markdown' };
+    case 'markdown':
+    case 'slides': return { name: `${base}.md`, mime: 'text/markdown' };
+    case 'sheet': return /^\s*\|/m.test(a.content) ? { name: `${base}.md`, mime: 'text/markdown' } : { name: `${base}.csv`, mime: 'text/csv' };
     case 'mermaid': return { name: `${base}.mmd`, mime: 'text/plain' };
     case 'code': return { name: `${base}.${EXT[a.language ?? ''] ?? 'txt'}`, mime: 'text/plain' };
   }

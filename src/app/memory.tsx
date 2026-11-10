@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
+import { Markdown } from '@/components/Markdown';
 import { t } from '@/i18n';
 import { cancelMemoryUpdate, resetMemory, setMemoryText, updateMemoryNow, useMemory } from '@/memory';
 import { formatWhen } from '@/projects/format';
@@ -66,9 +67,12 @@ export default function MemoryPage() {
         </View>
       ) : (
         <Card onPress={updating ? undefined : () => setDraft(text)}>
-          <Text selectable style={{ fontFamily: font.sans, fontSize: fs.base, lineHeight: 23, color: text ? c.text : c.muted }}>
-            {text || t('Nothing remembered yet. Memory is written from your chats as you use Neru.')}
-          </Text>
+          {/* Memory is written in Markdown (headings, lists, bold): shown rendered here, as source while editing. */}
+          {text ? (
+            <Markdown text={text} />
+          ) : (
+            <Text style={{ fontFamily: font.sans, fontSize: fs.base, lineHeight: 23, color: c.muted }}>{t('Nothing remembered yet. Memory is written from your chats as you use Neru.')}</Text>
+          )}
           <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.muted, marginTop: 6 }}>{t('Last updated: {when}', { when: formatWhen(updatedAt) })}</Text>
           {!updating ? <Text style={{ fontFamily: font.medium, fontSize: fs.sm, color: c.muted }}>{t('Tap to edit')}</Text> : null}
         </Card>

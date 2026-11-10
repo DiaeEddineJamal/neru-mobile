@@ -190,6 +190,18 @@ check('multiline attrs', '<artifact id=“plan”\n  type="markdown"\n  title="T
   assert.equal(a.kind, 'markdown');
 });
 
+// 18b. Office files: Word and PDF are Markdown documents with a format; PowerPoint and Excel have their own kinds.
+check('office types', [
+  '<artifact id="cv" type="docx" title="CV">\n# Jane\n</artifact>',
+  '<artifact id="r" type="application/pdf" title="Report">\n# R\n</artifact>',
+  '<artifact id="d" type="pptx" title="Deck">\n# A\n---\n# B\n</artifact>',
+  '<artifact id="s" type="xlsx" title="Budget">\na,b\n1,2\n</artifact>',
+  '<artifact id="w" type="markdown" format="word" title="Letter">\nHi\n</artifact>',
+  '<artifact id="ss" type="text/stylesheet" title="Styles">\nbody{}\n</artifact>',
+].join('\n'), segs => {
+  assert.deepEqual(arts(segs).map(a => [a.kind, a.format]), [['markdown', 'docx'], ['markdown', 'pdf'], ['slides', undefined], ['sheet', undefined], ['markdown', 'docx'], ['markdown', undefined]]); // "stylesheet" is not a spreadsheet
+});
+
 // 19. Never throws, whatever comes in.
 for (const junk of ['', '<', '<artifact', '<artifact>', '</artifact>', '<artifact id="', '```', '```html\n', '&lt;artifact', '<artifact type=>`', '\u0000<artifact\u0000>', null, undefined, 42]) {
   assert.doesNotThrow(() => splitArtifacts(junk as unknown as string));

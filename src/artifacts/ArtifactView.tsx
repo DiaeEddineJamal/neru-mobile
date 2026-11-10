@@ -2,13 +2,14 @@
 // HTML, SVG and Mermaid run in a sandboxed WebView: no file access, JavaScript only for HTML pages and the Mermaid
 // renderer, and every navigation away from the page is blocked; http(s), mailto and tel links open outside the app.
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SvgXml } from 'react-native-svg';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 
-import { KIND_ICON } from '@/artifacts/kinds';
+import { deckHtml, documentHtml, sheetHtml, sheetPreview } from '@/artifacts/html';
+import { displayTitle, iconFor } from '@/artifacts/kinds';
 import type { Artifact } from '@/artifacts/parse';
 import { Icon } from '@/components/Icon';
 import { Markdown } from '@/components/Markdown';
@@ -34,7 +35,7 @@ function svgHtml(content: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${VIEWPORT}<style>html,body{margin:0;height:100%;background:#fff}body{display:flex;align-items:center;justify-content:center}svg{max-width:100%;max-height:100vh;height:auto}</style></head><body>${content}</body></html>`;
 }
 
-function mermaidHtml(code: string, dark: boolean): string {
+export function mermaidHtml(code: string, dark: boolean): string {
   const source = JSON.stringify(code).replace(/</g, '\\u003c');
   const bg = dark ? '#151515' : '#ffffff';
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${VIEWPORT}<style>html,body{margin:0;background:${bg}}#d{padding:16px;display:flex;justify-content:center}#d svg{max-width:100%;height:auto}</style></head><body><div id="d"></div>
@@ -96,16 +97,37 @@ export function Sandbox({ html, js, onMessage, style, background = '#ffffff', in
   );
 }
 
-/** Full-height code with line numbers and syntax colours. */
-export function CodeView({ code, lang }: { code: string; lang: string }) {
+/**
+ * Scroll props that keep the newest text in view while `follow` is on (an artifact being written), the way a terminal
+ * tails its output. Scrolling up to read pauses it; scrolling back to the end resumes it.
+ */
+function useFollow(follow: boolean) {
+  const ref = useRef<ScrollView>(null);
+  const atEnd = useRef(true);
+  return {
+    ref,
+    scrollEventThrottle: 64,
+    onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+      atEnd.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
+    },
+    onContentSizeChange: () => {
+      if (follow && atEnd.current) ref.current?.scrollToEnd({ animated: false });
+    },
+  };
+}
+
+/** Full-height code with line numbers and syntax colours. `follow`: keep the last line in view as code arrives. */
+export function CodeView({ code, lang, follow = false }: { code: string; lang: string; follow?: boolean }) {
   const c = useColors();
   const palette = vscode[useScheme()];
   const bottom = useBottomPad();
+  const tail = useFollow(follow);
   const lines = useMemo(() => tokenize(code, lang), [code, lang]);
   const gutter = String(lines.length).length * 8 + 16;
   const line = { fontFamily: font.mono, fontSize: fs.xs, lineHeight: 20, fontVariant: ['no-common-ligatures', 'no-contextual'] as ('no-common-ligatures' | 'no-contextual')[] };
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.surface2 }} contentContainerStyle={{ paddingVertical: 12, paddingBottom: bottom + 24 }}>
+    <ScrollView {...tail} style={{ flex: 1, backgroundColor: c.surface2 }} contentContainerStyle={{ paddingVertical: 12, paddingBottom: bottom + 24 }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View>
           {lines.map((tokens, i) => (
@@ -148,23 +170,38 @@ function MermaidView({ code }: { code: string }) {
   return <Sandbox html={html} js background={c.bg} onMessage={m => setState(m === 'ok' ? 'ok' : m === 'offline' ? 'offline' : 'error')} />;
 }
 
-/** The artifact itself, filling the screen. */
-export function ArtifactBody({ artifact }: { artifact: Artifact }) {
+/** The artifact itself, filling the screen. `follow`: it is being written, so keep its end in view. */
+export function ArtifactBody({ artifact, follow = false }: { artifact: Artifact; follow?: boolean }) {
   const c = useColors();
   const bottom = useBottomPad();
-  const html = useMemo(() => (artifact.kind === 'html' ? pageHtml(artifact.content) : artifact.kind === 'svg' ? svgHtml(artifact.content) : ''), [artifact.kind, artifact.content]);
+  const tail = useFollow(follow);
+  // A Word or PDF document shows on paper once it is written; while it is being written, as live Markdown.
+  const paper = artifact.kind === 'markdown' && !!artifact.format && !follow;
+  const html = useMemo(() => {
+    if (artifact.kind === 'html') return pageHtml(artifact.content);
+    if (artifact.kind === 'svg') return svgHtml(artifact.content);
+    if (artifact.kind === 'slides') return deckHtml(artifact);
+    if (artifact.kind === 'sheet') return sheetHtml(artifact);
+    if (paper) return documentHtml(artifact);
+    return '';
+  }, [artifact, paper]);
+  if (paper) return <Sandbox html={html} js={false} background="#e9ece9" />;
   switch (artifact.kind) {
     case 'html':
       return <Sandbox html={html} js />;
+    case 'slides':
+      return <Sandbox html={html} js={false} background="#e9ece9" />;
+    case 'sheet':
+      return <Sandbox html={html} js={false} />;
     case 'svg':
       return <Sandbox html={html} js={false} />;
     case 'mermaid':
       return <MermaidView code={artifact.content} />;
     case 'code':
-      return <CodeView code={artifact.content} lang={artifact.language ?? ''} />;
+      return <CodeView code={artifact.content} lang={artifact.language ?? ''} follow={follow} />;
     case 'markdown':
       return (
-        <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: bottom + 32 }}>
+        <ScrollView {...tail} style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: bottom + 32 }}>
           <Animated.View entering={FadeIn.duration(220)}>
             <Markdown text={artifact.content} />
           </Animated.View>
@@ -212,6 +249,25 @@ export function ArtifactThumb({ artifact, visible }: { artifact: Artifact; visib
         </View>
       </Boundary>
     );
+  } else if (artifact.kind === 'slides') {
+    body = (
+      <View style={[s.center, { backgroundColor: '#1F3A2E', padding: 10 }]}>
+        <Text numberOfLines={3} style={{ fontFamily: font.semibold, fontSize: 12, lineHeight: 15, color: '#ffffff', textAlign: 'center' }}>{displayTitle(artifact)}</Text>
+        <View style={{ width: 22, height: 2, backgroundColor: '#CFE3D6', marginTop: 6 }} />
+      </View>
+    );
+  } else if (artifact.kind === 'sheet') {
+    body = (
+      <View style={{ padding: 6 }}>
+        {sheetPreview(artifact).map((row, i) => (
+          <View key={i} style={{ flexDirection: 'row', backgroundColor: i === 0 ? '#3E7A5A' : 'transparent' }}>
+            {row.map((cell, j) => (
+              <Text key={j} numberOfLines={1} style={{ flex: 1, fontFamily: font.sans, fontSize: 6.5, lineHeight: 11, paddingHorizontal: 2, borderWidth: StyleSheet.hairlineWidth, borderColor: '#d5dcd7', color: i === 0 ? '#ffffff' : '#333333' }}>{cell}</Text>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
   } else if (artifact.kind === 'markdown') {
     const lines = strip(artifact.content).split('\n').map(l => l.trim()).filter(Boolean);
     body = (
@@ -227,12 +283,12 @@ export function ArtifactThumb({ artifact, visible }: { artifact: Artifact; visib
       </Text>
     );
   }
-  const paper = artifact.kind === 'html' || artifact.kind === 'svg' || artifact.kind === 'markdown';
+  const paper = artifact.kind === 'html' || artifact.kind === 'svg' || artifact.kind === 'markdown' || artifact.kind === 'sheet';
   return (
     <View style={[s.thumb, { backgroundColor: paper ? '#ffffff' : c.surface3, borderColor: c.border }]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {body}
       <View style={[s.badge, { backgroundColor: c.surface2, borderColor: c.border }]}>
-        <Icon name={KIND_ICON[artifact.kind]} size={18} color={c.text} />
+        <Icon name={iconFor(artifact)} size={18} color={c.text} />
       </View>
     </View>
   );

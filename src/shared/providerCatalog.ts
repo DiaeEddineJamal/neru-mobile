@@ -49,6 +49,8 @@ export const providerPresets: ProviderPreset[] = [
   { id: 'cerebras', name: 'Cerebras', description: 'Very fast open models. Few requests per minute, so long agent runs are slower.', baseUrl: 'https://api.cerebras.ai/v1', model: 'gpt-oss-120b', format: 'openai-chat', keyUrl: 'https://cloud.cerebras.ai/platform/', freeLimit: '1M tokens/day · 5 requests/min' , privacy: 'unknown' },
   { id: 'mistral', name: 'Mistral', description: 'Free plan. Codestral and Devstral for writing and editing code.', baseUrl: 'https://api.mistral.ai/v1', model: 'codestral-latest', format: 'openai-chat', keyUrl: 'https://console.mistral.ai/api-keys', freeLimit: 'Monthly free credit' , privacy: 'may-train' },
   { id: 'openrouter', name: 'OpenRouter', description: 'One key for many models. Neru stays on the free catalog and switches free models when one is busy.', baseUrl: 'https://openrouter.ai/api/v1', model: 'openrouter/free', format: 'openai-chat', keyUrl: 'https://openrouter.ai/settings/keys', freeLimit: '50 free requests/day (1,000 after $10 credit)' , privacy: 'may-train' },
+  // Free, checked 2026-11-09: https://kilo.ai/docs/gateway/authentication (models ending in ":free" need no payment).
+  { id: 'kilo', name: 'Kilo Gateway', description: 'Kilo Code’s OpenAI-compatible gateway. Models ending in :free cost nothing, and the free list changes. Free models may log prompts for the model maker. Get the key from your profile at app.kilo.ai.', baseUrl: 'https://ai-gateway.kilo.ai/api/v1', model: '', format: 'openai-chat', keyUrl: 'https://app.kilo.ai', freeLimit: 'Free :free models, about 200 requests/hour', privacy: 'unknown' },
   { id: 'groq', name: 'Groq Cloud', description: 'Very fast, but the free plan allows about 8K tokens a minute: fine for Chat, too small for Code on real projects. This is Groq, not xAI Grok.', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', format: 'openai-chat', keyUrl: 'https://console.groq.com/keys', freeLimit: '1,000 requests/day · 8K tokens/min' , privacy: 'no-training' },
   { id: 'huggingface', name: 'Hugging Face', description: 'Free token. Open models served by several inference partners, with a small monthly credit.', baseUrl: 'https://router.huggingface.co/v1', model: 'openai/gpt-oss-120b', format: 'openai-chat', keyUrl: 'https://huggingface.co/settings/tokens', freeLimit: 'Small monthly credit' , privacy: 'unknown' },
   { id: 'local', name: 'Local gateway', description: 'FreeLLMAPI or another local OpenAI-compatible server', baseUrl: 'http://localhost:3001/v1', model: 'auto', format: 'openai-chat' , privacy: 'local' },
@@ -65,7 +67,7 @@ export const providerPresets: ProviderPreset[] = [
   { id: 'custom', name: 'Custom endpoint', description: 'Any compatible Chat, Responses, or Messages API', baseUrl: '', model: '', format: 'openai-chat' , privacy: 'unknown' },
 ]
 
-const chatProviders = new Set(['modelscope', 'local', 'ollama', 'groq', 'gemini', 'cerebras', 'mistral', 'nvidia', 'huggingface', 'openrouter', 'deepseek', 'qwen', 'kimi', 'zai', 'minimax', 'xai'])
+const chatProviders = new Set(['kilo', 'modelscope', 'local', 'ollama', 'groq', 'gemini', 'cerebras', 'mistral', 'nvidia', 'huggingface', 'openrouter', 'deepseek', 'qwen', 'kimi', 'zai', 'minimax', 'xai'])
 
 function leaf(model: string) {
   return (model.split('/').pop() ?? model).trim().toLowerCase()

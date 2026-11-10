@@ -1,7 +1,7 @@
 {
   "name": "neru-mobile",
   "main": "expo-router/entry",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo-google-fonts/instrument-serif": "^0.4.1",
@@ -30,6 +30,7 @@
     "expo-linking": "~57.0.11",
     "expo-media-library": "~57.0.5",
     "expo-notifications": "~57.0.21",
+    "expo-print": "~57.0.2",
     "expo-router": "~57.0.24",
     "expo-secure-store": "~57.0.4",
     "expo-sharing": "~57.0.22",

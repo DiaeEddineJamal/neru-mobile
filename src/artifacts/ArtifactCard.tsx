@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
-import { displayTitle, KIND_ICON, kindLabel } from '@/artifacts/kinds';
+import { displayTitle, iconFor, typeLabel } from '@/artifacts/kinds';
 import { artifactKey, isStreaming } from '@/artifacts/library';
 import type { Artifact } from '@/artifacts/parse';
 import { Icon } from '@/components/Icon';
@@ -25,15 +25,15 @@ export function ArtifactCard({ artifact, chatId, messageId }: { artifact: Artifa
     ? t('Writing…')
     : artifact.kind === 'code' && artifact.language
       ? `${artifact.language} · ${t('Tap to open')}`
-      : `${kindLabel(artifact.kind)} · ${t('Tap to open')}`;
+      : `${typeLabel(artifact)} · ${t('Tap to open')}`;
   return (
     <Squish
       onPress={() => router.push(`/artifact/${encodeURIComponent(artifactKey(chatId, artifact.id, messageId))}` as Href)}
-      accessibilityLabel={`${title}, ${kindLabel(artifact.kind)}${writing ? `, ${t('Writing…')}` : ''}`}
+      accessibilityLabel={`${title}, ${typeLabel(artifact)}${writing ? `, ${t('Writing…')}` : ''}`}
       style={[s.card, { backgroundColor: c.surface2, borderColor: c.border }]}
     >
       <View style={[s.chip, { backgroundColor: c.surface3 }]}>
-        <Icon name={KIND_ICON[artifact.kind]} size={22} color={c.text} />
+        <Icon name={iconFor(artifact)} size={22} color={c.text} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text numberOfLines={1} style={{ fontFamily: font.semibold, fontSize: fs.md, color: c.text }}>{title}</Text>

@@ -87,7 +87,7 @@ async function cachedModels(c: ProviderConfig) {
 
 /**
  * The model to use after `current` failed with `error`: rests the failed model, then ranks every
- * model of every saved key (OpenRouter's free ones only, so nothing is billed by surprise).
+ * model of every saved key (OpenRouter's and Kilo's free ones only, so nothing is billed by surprise).
  */
 export async function nextModel(current: ProviderConfig, error: string, keys: ProviderConfig[]): Promise<ProviderConfig | null> {
   const h = await health();
@@ -101,7 +101,7 @@ export async function nextModel(current: ProviderConfig, error: string, keys: Pr
   let best: { s: number; config: ProviderConfig } | null = null;
   candidates.forEach((cand, i) => {
     for (const m of models[i]) {
-      if (cand.providerId === 'openrouter' && !isFreeModel(m)) continue;
+      if ((cand.providerId === 'openrouter' || cand.providerId === 'kilo') && !isFreeModel(m)) continue;
       if ((cand.providerId === current.providerId && m === current.model) || resting(cand, m)) continue;
       const s = score(m) - 8 * (h[key(cand, m)]?.failures ?? 0) + (cand.providerId === current.providerId ? 6 : 0);
       if (!best || s > best.s) best = { s, config: { ...cand, model: m } };

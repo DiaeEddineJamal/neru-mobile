@@ -5,11 +5,15 @@
 // kind is then guessed from the content), tags wrapped in ``` fences, fences inside the body, escaped `&lt;…&gt;`
 // tags, extra closing tags, unclosed tags while streaming, and full HTML pages or large SVGs written as a plain
 // ```html fence with no tag at all. Pure TypeScript with no app imports so `node src/artifacts/parse.check.ts` runs it.
-export type ArtifactKind = 'html' | 'svg' | 'markdown' | 'code' | 'mermaid';
-export type Artifact = { id: string; title: string; kind: ArtifactKind; language?: string; content: string; /** Still streaming: not closed yet. */ open: boolean };
+// Files: type="docx" or "pdf" is a Markdown document the app turns into a Word or PDF file; type="pptx" is Markdown
+// slides split by "---" (kind 'slides'); type="xlsx" is Markdown tables or CSV (kind 'sheet').
+export type ArtifactKind = 'html' | 'svg' | 'markdown' | 'code' | 'mermaid' | 'slides' | 'sheet';
+/** The file a Markdown document is meant to become. */
+export type DocFormat = 'docx' | 'pdf';
+export type Artifact = { id: string; title: string; kind: ArtifactKind; language?: string; format?: DocFormat; content: string; /** Still streaming: not closed yet. */ open: boolean };
 export type Segment = { type: 'text'; text: string } | { type: 'artifact'; artifact: Artifact };
 
-export const ARTIFACT_KINDS: ArtifactKind[] = ['html', 'svg', 'markdown', 'code', 'mermaid'];
+export const ARTIFACT_KINDS: ArtifactKind[] = ['markdown', 'slides', 'sheet', 'html', 'svg', 'code', 'mermaid'];
 
 /** Splits a reply into Markdown text and artifacts. Must never throw, whatever the model wrote. */
 export function splitArtifacts(text: string): Segment[] {
@@ -206,10 +210,15 @@ function parseAttrs(raw: string): Record<string, string> {
 }
 
 /** The kind named by a type attribute ("html", "text/html", "application/vnd.ant.code", "python"…). */
-function kindOfType(type: string): { kind: ArtifactKind; language?: string } | null {
+function kindOfType(type: string): { kind: ArtifactKind; language?: string; format?: DocFormat } | null {
   const v = type.toLowerCase().trim();
   if (!v) return null;
   if (v.includes('mermaid')) return { kind: 'mermaid' };
+  // Office files, named by extension, app or MIME type.
+  if (/pptx?\b|powerpoint|presentationml|\bslides?\b|\bdeck\b|presentation/.test(v)) return { kind: 'slides' };
+  if (/xlsx?\b|excel|spreadsheet|\bsheets?\b|workbook|\bcsv\b/.test(v)) return { kind: 'sheet' };
+  if (/docx\b|\bword\b|wordprocessingml|msword/.test(v)) return { kind: 'markdown', format: 'docx' };
+  if (/\bpdf\b/.test(v)) return { kind: 'markdown', format: 'pdf' };
   if (v.includes('svg')) return { kind: 'svg' };
   if (v.includes('react')) return { kind: 'code', language: 'jsx' };
   if (/vnd\.ant\.code|\bcode\b|script|program|source|snippet/.test(v)) return { kind: 'code' };
@@ -276,7 +285,7 @@ export function titleFrom(kind: ArtifactKind, body: string): string {
     const m = /<title[^>]*>([^<]{1,120})<\/title>/i.exec(body) ?? (kind === 'html' ? /<h1[^>]*>([^<]{1,120})<\/h1>/i.exec(body) : null);
     if (m) return unescapeHtml(m[1]).trim();
   }
-  if (kind === 'markdown') {
+  if (kind === 'markdown' || kind === 'slides' || kind === 'sheet') {
     const m = /^\s*#{1,3}\s+(.{1,120})$/m.exec(body);
     if (m) return m[1].replace(/[*_`]/g, '').trim();
   }
@@ -296,7 +305,8 @@ function build(attrs: Record<string, string>, raw: string, open: boolean, ctx: C
   if (kind !== 'code') language = undefined;
   const given = (attrs.title || attrs.name || '').trim();
   const id = attrs.id || attrs.identifier || attrs.key || '';
-  return finish({ id, title: given || titleFrom(kind, body), kind, language: language || undefined, content: body, open }, ctx, slugify(id) || slugify(given));
+  const format = kind === 'markdown' ? (typed?.format ?? kindOfType(attrs.format ?? '')?.format) : undefined;
+  return finish({ id, title: given || titleFrom(kind, body), kind, language: language || undefined, ...(format ? { format } : {}), content: body, open }, ctx, slugify(id) || slugify(given));
 }
 
 function finish(a: Artifact, ctx: Ctx, base: string): Artifact {
